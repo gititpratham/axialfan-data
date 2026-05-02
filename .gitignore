@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.streamlit/
+test_ml.py
+.DS_Store
