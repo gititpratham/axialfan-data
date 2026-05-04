@@ -1,6 +1,6 @@
-# 🌀 Axial Fan Performance Analysis Tool (18" & 24")
+# 🌀 Axial Fan Performance Analysis Tool
 
-Interactive Streamlit dashboard for analyzing, predicting, and selecting tube axial fan performance using machine learning. Supports multiple fan models (18" and 24") with dynamic data editing and motor selection recommendations.
+Interactive Streamlit dashboard for analyzing, predicting, and selecting tube axial fan performance using machine learning. Supports multiple fan models with dynamic data editing and motor selection recommendations.
 
 ## Quick Start
 
@@ -18,7 +18,7 @@ The app will open at **http://localhost:8501**.
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-Fan Support** | Integrated support for 18" and 24" Tube Axial fans with model-specific engineering constants. |
+| **Multi-Fan Support** | Integrated support for Tube Axial fans with model-specific engineering constants. |
 | **Interactive Data Editor** | Edit raw test data directly in the UI, add/delete rows, and retrain ML models in real-time. |
 | **ML-Powered Predictions** | Predicts full performance curves (Volume, Pressure, Power, Efficiency) for *any* custom blade angle. |
 | **Motor Recommendation** | Input requirements (CMH & SP) → recommends the best motor (950 / 1440 / 2850 RPM) and blade angle using fan laws. |
