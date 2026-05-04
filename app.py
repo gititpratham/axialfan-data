@@ -130,25 +130,33 @@ with st.sidebar:
 
     # ── Fan selector ───────────────────────────────────────────
     st.markdown('### 🌀 Fan Selection')
-    fan_options = list(FAN_REGISTRY.keys())
-    selected_fan = st.selectbox('Select Fan', fan_options, key='fan_select')
-    _, _def_ct = FAN_REGISTRY[selected_fan]
+    db_fans = db_list_fans()
+    if not db_fans:
+        st.error("No fans found in database.")
+        st.stop()
+        
+    fan_display_to_id = {f["display_name"]: f["fan_id"] for f in db_fans}
+    fan_options = list(fan_display_to_id.keys())
+    
+    selected_display_name = st.selectbox('Select Fan', fan_options, key='fan_select')
+    selected_fan = fan_display_to_id[selected_display_name]
+    _db_constants = get_fan_constants(selected_fan)
 
     st.markdown('### 📐 Test Parameters')
-    duct_dia = st.number_input('Duct Diameter (m)',    value=_def_ct['duct_dia_m'],      format='%.4f', step=0.001)
-    cd       = st.number_input('Discharge Coeff (CD)', value=_def_ct['discharge_coeff'], format='%.2f', step=0.01)
-    cw       = st.number_input('Wattmeter Corr (CW)',  value=_def_ct['cw'],              format='%.1f', step=1.0)
+    duct_dia = st.number_input('Duct Diameter (m)',    value=_db_constants['duct_dia_m'],      format='%.4f', step=0.001)
+    cd       = st.number_input('Discharge Coeff (CD)', value=_db_constants['discharge_coeff'], format='%.2f', step=0.01)
+    cw       = st.number_input('Wattmeter Corr (CW)',  value=_db_constants['cw'],              format='%.1f', step=1.0)
 
     st.markdown('### 🌡️ Conditions')
-    test_temp   = st.number_input('Test Temp (°C)',   value=int(_def_ct['test_temp_c']),      step=1)
-    test_baro   = st.number_input('Test Baro (mm Hg)', value=int(_def_ct['test_baro_mmhg']),   step=1)
-    design_temp = st.number_input('Design Temp (°C)', value=int(_def_ct['design_temp_c']),    step=1)
-    design_baro = st.number_input('Design Baro (mm Hg)', value=int(_def_ct['design_baro_mmhg']), step=1)
+    test_temp   = st.number_input('Test Temp (°C)',   value=int(_db_constants['test_temp_c']),      step=1)
+    test_baro   = st.number_input('Test Baro (mm Hg)', value=int(_db_constants['test_baro_mmhg']),   step=1)
+    design_temp = st.number_input('Design Temp (°C)', value=int(_db_constants['design_temp_c']),    step=1)
+    design_baro = st.number_input('Design Baro (mm Hg)', value=int(_db_constants['design_baro_mmhg']), step=1)
 
     st.markdown('### ⚡ Motor')
-    design_speed = st.number_input('Design Speed (RPM)', value=int(_def_ct['design_speed_rpm']), step=1)
+    design_speed = st.number_input('Design Speed (RPM)', value=int(_db_constants['design_speed_rpm']), step=1)
     motor_eff    = st.slider('Motor Efficiency (%)', 50, 95,
-                             int(_def_ct['motor_efficiency'] * 100)) / 100.0
+                             int(_db_constants['motor_efficiency'] * 100)) / 100.0
 
     constants = dict(
         duct_dia_m=duct_dia, discharge_coeff=cd, cw=cw,
@@ -164,7 +172,7 @@ with st.sidebar:
 # ────────────────────────────────────────────────────────────────
 _skey = f'edited_{selected_fan}'
 if _skey not in st.session_state:
-    st.session_state[_skey] = get_raw_data(selected_fan)
+    st.session_state[_skey] = get_raw_df(selected_fan)
 
 raw_df = st.session_state[_skey]
 
@@ -190,9 +198,8 @@ df_json = raw_df.to_json()
 df = _compute(selected_fan, ct, df_json)
 
 try:
-    _fan_id = _fan_id_from_name(selected_fan)
     mi = get_or_train_model(
-        fan_id=_fan_id,
+        fan_id=selected_fan,
         df_computed=df,
         force_retrain=False,
     )
@@ -206,16 +213,15 @@ except Exception as _train_err:
 # ────────────────────────────────────────────────────────────────
 # HEADER
 # ────────────────────────────────────────────────────────────────
-fan_inches = '18"' if '18' in selected_fan else '24"'
 st.markdown(f"""
 <div class="main-header">
-  <h1>🌀 {fan_inches} Tube Axial Fan — Performance Analysis</h1>
+  <h1>🌀 {selected_display_name} — Performance Analysis</h1>
   <p>ML-Powered Performance Prediction &amp; Engineering Visualisation Tool</p>
 </div>""", unsafe_allow_html=True)
 
 # key metrics banner
 c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric('📏 Fan Size',     fan_inches,              f'{constants["duct_dia_m"]*1000:.0f} mm')
+c1.metric('📏 Fan Name',     selected_display_name,              f'{constants["duct_dia_m"]*1000:.0f} mm')
 c2.metric('🔄 Design RPM',   f'{constants["design_speed_rpm"]}', 'RPM')
 c3.metric('💨 Max Volume',   f'{df["Q_CMH"].max():.0f}',         'CMH')
 c4.metric('📊 Max FSP',      f'{df["FSP"].max():.1f}',           'mm WG')
@@ -255,7 +261,7 @@ with tab1:
         st.cache_resource.clear()
         st.rerun()
     if col_reset.button('🔄 Reset to Original Data', use_container_width=True):
-        st.session_state[_skey] = get_raw_data(selected_fan)
+        st.session_state[_skey] = get_raw_df(selected_fan)
         st.cache_data.clear()
         st.cache_resource.clear()
         st.rerun()
