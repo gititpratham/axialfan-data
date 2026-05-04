@@ -1,7 +1,6 @@
 {
   "fan_id": "36in_TA",
   "data_hash": "3deb1b185c2b24b0e8800f731354a6c2361a7b5e79cd9a5efec2a0ce0dd9097d",
-  "best_model_name": "Random Forest",
-  "avg_r2_cv": 0.7097689659118713,
-  "saved_at": "2026-05-04T11:22:31"
+  "avg_r2_cv": 0.7937982389876181,
+  "saved_at": "2026-05-04T15:14:08"
 }

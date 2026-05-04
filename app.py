@@ -17,7 +17,7 @@ from data import (
     DEFAULT_CONSTANTS, DEFAULT_CONSTANTS_24, FAN_REGISTRY,
 )
 from ml_model import (
-    train_all_models, predict_performance,
+    predict_performance,
     find_best_operating_point, find_motor_recommendation,
     TARGET_COLS, STANDARD_MOTORS,
 )
@@ -185,13 +185,6 @@ def _compute(fan, ct, df_json):
     raw = pd.read_json(io.StringIO(df_json))
     return compute_derived_quantities(df=raw, fan=fan, constants=dict(ct))
 
-@st.cache_resource(show_spinner='Training ML models (LOOCV) …')
-def _train(fan, ct, df_json):
-    import io
-    raw = pd.read_json(io.StringIO(df_json))
-    df  = compute_derived_quantities(df=raw, fan=fan, constants=dict(ct))
-    return train_all_models(df)
-
 # _train replaced by model_store — only retrains when data changed
 ct = tuple(sorted(constants.items()))
 df_json = raw_df.to_json()
@@ -358,15 +351,10 @@ with tab2:
 with tab3:
     st.markdown('### 🤖 Machine Learning Model Performance')
 
-    best = mi['best_model_name']
-    mcols = st.columns(3)
-    for i, (name, res) in enumerate(mi['results'].items()):
-        with mcols[i]:
-            badge  = '🏆 BEST' if name == best else ''
-            border = 'rgba(0,255,133,.4)' if name == best else 'rgba(255,255,255,.1)'
-            st.markdown(f"""
-<div class="metric-card" style="border-color:{border}">
-  <h3>{name} {badge}</h3>
+    res = mi['results']
+    st.markdown(f"""
+<div class="metric-card" style="border-color:rgba(0,255,133,.4)">
+  <h3>Gaussian Process (Matérn)</h3>
   <div class="value">{res['avg_r2_cv']:.3f}</div>
   <div class="unit">Avg LOOCV R²</div>
 </div>""", unsafe_allow_html=True)
@@ -374,17 +362,15 @@ with tab3:
     st.markdown('')
 
     with st.expander('📊 Detailed Model Metrics (LOOCV)'):
-        for name, res in mi['results'].items():
-            st.markdown(f"**{name}** {'🏆' if name == best else ''}")
-            mdf = pd.DataFrame({
-                'Target':     TARGET_COLS,
-                'Train R²':   [res['r2_train'][t] for t in TARGET_COLS],
-                'CV R²':      [res['r2_cv'][t]    for t in TARGET_COLS],
-                'Train RMSE': [res['rmse_train'][t] for t in TARGET_COLS],
-                'CV RMSE':    [res['rmse_cv'][t]    for t in TARGET_COLS],
-            })
-            st.dataframe(mdf.round(4), use_container_width=True, hide_index=True)
-            st.markdown('')
+        mdf = pd.DataFrame({
+            'Target':     TARGET_COLS,
+            'Train R²':   [res['r2_train'][t] for t in TARGET_COLS],
+            'CV R²':      [res['r2_cv'][t]    for t in TARGET_COLS],
+            'Train RMSE': [res['rmse_train'][t] for t in TARGET_COLS],
+            'CV RMSE':    [res['rmse_cv'][t]    for t in TARGET_COLS],
+        })
+        st.dataframe(mdf.round(4), use_container_width=True, hide_index=True)
+        st.markdown('')
 
     st.markdown('---')
     st.markdown('### 🎯 Predicted vs Actual (LOOCV)')

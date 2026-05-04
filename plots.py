@@ -282,14 +282,14 @@ def create_prediction_vs_actual(df, model_info, target='Q_CMH'):
     fig = go.Figure()
     idx = model_info['target_cols'].index(target)
 
-    for name, res in model_info['results'].items():
-        actual  = df[target].values
-        pred    = res['loo_predictions'][:, idx]
-        r2      = res['r2_cv'][target]
-        fig.add_trace(go.Scatter(
-            x=actual, y=pred, mode='markers',
-            name=f'{name}  (R²={r2:.3f})',
-            marker=dict(size=10, opacity=0.85)))
+    res = model_info['results']
+    actual  = df[target].values
+    pred    = res['loo_predictions'][:, idx]
+    r2      = res['r2_cv'][target]
+    fig.add_trace(go.Scatter(
+        x=actual, y=pred, mode='markers',
+        name=f'GPR (Matérn)  (R²={r2:.3f})',
+        marker=dict(size=10, opacity=0.85)))
 
     mn, mx = df[target].min(), df[target].max()
     pad = (mx - mn) * 0.1

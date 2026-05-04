@@ -60,7 +60,7 @@ def get_or_train_model(fan_id: str, df_computed, force_retrain: bool = False) ->
     force_retrain : bypass cache
     """
     from fan_db import get_data_hash, _hash_df
-    from ml_model import train_all_models
+    from ml_model import train_model
 
     # Current hash of the data in the DB
     db_hash = get_data_hash(fan_id)
@@ -76,7 +76,7 @@ def get_or_train_model(fan_id: str, df_computed, force_retrain: bool = False) ->
                 return model_info
 
     # Train and persist
-    model_info = train_all_models(df_computed)
+    model_info = train_model(df_computed)
     _save_model(fan_id, model_info, data_hash=db_hash)
     return model_info
 
@@ -104,7 +104,7 @@ def delete_model(fan_id: str) -> None:
 def list_stored_models() -> list[dict]:
     """
     Return metadata for every fan that has a stored model.
-    Each entry: {fan_id, best_model_name, avg_r2_cv, data_hash, saved_at}
+    Each entry: {fan_id, avg_r2_cv, data_hash, saved_at}
     """
     results = []
     for fname in os.listdir(_STORE_DIR):
@@ -191,7 +191,7 @@ def cross_fan_recommend(
                 "scaled": rec["scaled"],
                 "deviation": rec["deviation"],
                 "n_ratio": rec["n_ratio"],
-                "model_name": meta.get("best_model_name", "?"),
+                "model_name": "GPR (Matérn)",
                 "avg_r2_cv": meta.get("avg_r2_cv", 0.0),
             })
 
@@ -222,9 +222,8 @@ def _save_model(fan_id: str, model_info: dict, data_hash: str) -> None:
     meta = {
         "fan_id": fan_id,
         "data_hash": data_hash,
-        "best_model_name": model_info.get("best_model_name"),
         "avg_r2_cv": float(
-            model_info["results"][model_info["best_model_name"]]["avg_r2_cv"]
+            model_info["results"]["avg_r2_cv"]
         ),
         "saved_at": datetime.datetime.now().isoformat(timespec="seconds"),
     }
@@ -266,34 +265,33 @@ def _reattach_loocv(model_info: dict, df_computed) -> dict:
     y = df_computed[TARGET_COLS].values
     X_sc = model_info["scaler_X"].transform(X)
 
-    results = {}
-    for name, model in model_info["models"].items():
-        y_pred_sc = model.predict(X_sc)
-        y_pred = model_info["scaler_y"].inverse_transform(y_pred_sc)
+    model = model_info["model"]
+    y_pred_sc = model.predict(X_sc)
+    y_pred = model_info["scaler_y"].inverse_transform(y_pred_sc)
 
-        loo = LeaveOneOut()
-        loo_preds = np.zeros_like(y)
-        # Use stored model for inference on held-out points (no refit)
-        for tr, te in loo.split(X_sc):
-            loo_preds[te] = model_info["scaler_y"].inverse_transform(
-                model.predict(X_sc[te])
-            )
-
-        from sklearn.metrics import r2_score, mean_squared_error
-        r2_train, rmse_train, r2_cv, rmse_cv = {}, {}, {}, {}
-        for i, col in enumerate(TARGET_COLS):
-            r2_train[col] = r2_score(y[:, i], y_pred[:, i])
-            rmse_train[col] = np.sqrt(mean_squared_error(y[:, i], y_pred[:, i]))
-            r2_cv[col] = r2_score(y[:, i], loo_preds[:, i])
-            rmse_cv[col] = np.sqrt(mean_squared_error(y[:, i], loo_preds[:, i]))
-
-        results[name] = dict(
-            r2_train=r2_train, rmse_train=rmse_train,
-            r2_cv=r2_cv, rmse_cv=rmse_cv,
-            avg_r2_cv=np.mean(list(r2_cv.values())),
-            y_pred=y_pred,
-            loo_predictions=loo_preds,
+    loo = LeaveOneOut()
+    loo_preds = np.zeros_like(y)
+    # Use stored model for inference on held-out points (no refit)
+    for tr, te in loo.split(X_sc):
+        loo_preds[te] = model_info["scaler_y"].inverse_transform(
+            model.predict(X_sc[te])
         )
+
+    from sklearn.metrics import r2_score, mean_squared_error
+    r2_train, rmse_train, r2_cv, rmse_cv = {}, {}, {}, {}
+    for i, col in enumerate(TARGET_COLS):
+        r2_train[col] = r2_score(y[:, i], y_pred[:, i])
+        rmse_train[col] = np.sqrt(mean_squared_error(y[:, i], y_pred[:, i]))
+        r2_cv[col] = r2_score(y[:, i], loo_preds[:, i])
+        rmse_cv[col] = np.sqrt(mean_squared_error(y[:, i], loo_preds[:, i]))
+
+    results = dict(
+        r2_train=r2_train, rmse_train=rmse_train,
+        r2_cv=r2_cv, rmse_cv=rmse_cv,
+        avg_r2_cv=np.mean(list(r2_cv.values())),
+        y_pred=y_pred,
+        loo_predictions=loo_preds,
+    )
 
     model_info = dict(model_info)   # shallow copy
     model_info["results"] = results

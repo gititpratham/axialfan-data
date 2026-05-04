@@ -412,7 +412,7 @@ def _page_model_store() -> None:
         stale = is_model_stale(fid)
         rows.append({
             "Fan": fan["display_name"],
-            "Model": meta["best_model_name"] if meta else "—",
+            "Model": "GPR (Matérn)" if meta else "—",
             "Avg CV R²": f"{meta['avg_r2_cv']:.4f}" if meta else "—",
             "Saved At": meta.get("saved_at", "—") if meta else "—",
             "Status": "⚠️ Stale" if stale else ("✅ Fresh" if meta else "❌ None"),
@@ -460,8 +460,8 @@ def _page_model_store() -> None:
                 computed = compute_derived_quantities(df=raw, constants=constants)
                 mi = get_or_train_model(fan_id, computed, force_retrain=True)
                 st.success(
-                    f"✅ Best model: **{mi['best_model_name']}** — "
-                    f"Avg CV R² = {mi['results'][mi['best_model_name']]['avg_r2_cv']:.4f}"
+                    f"✅ Model trained: **GPR (Matérn)** — "
+                    f"Avg CV R² = {mi['results']['avg_r2_cv']:.4f}"
                 )
                 st.rerun()
             except Exception as e:
@@ -484,8 +484,7 @@ def _page_model_store() -> None:
                 constants = get_fan_constants(fan_id)
                 computed = compute_derived_quantities(df=raw, constants=constants)
                 mi = get_or_train_model(fan_id, computed, force_retrain=False)
-                best = mi["best_model_name"]
-                res = mi["results"][best]
+                res = mi["results"]
 
                 mdf = pd.DataFrame({
                     "Target": TARGET_COLS,

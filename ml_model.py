@@ -17,9 +17,8 @@ warnings.filterwarnings("ignore")
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel, WhiteKernel
+from sklearn.gaussian_process.kernels import Matern, ConstantKernel, WhiteKernel
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import LeaveOneOut
@@ -36,29 +35,8 @@ TARGET_COLS  = ['SP', 'Qt_CMH', 'Q_CMH', 'FSP', 'FTP',
 # ────────────────────────────────────────────────────────────────
 # Model factories (so we can re-create identical models per CV fold)
 # ────────────────────────────────────────────────────────────────
-def _make_gbr():
-    return MultiOutputRegressor(
-        GradientBoostingRegressor(
-            n_estimators=500,       # more trees = finer, smoother steps
-            max_depth=2,            # shallower = smoother surface
-            learning_rate=0.05,     # lower LR compensates for more trees
-            subsample=0.8,          # stochastic boosting smooths predictions
-            min_samples_split=3,
-            min_samples_leaf=2,
-            random_state=42,
-        )
-    )
-
-def _make_rf():
-    return MultiOutputRegressor(
-        RandomForestRegressor(
-            n_estimators=200, max_depth=4,
-            min_samples_split=3, min_samples_leaf=2, random_state=42,
-        )
-    )
-
 def _make_gpr():
-    kernel = (ConstantKernel(1.0) * RBF(length_scale=[1.0, 1.0])
+    kernel = (ConstantKernel(1.0) * Matern(length_scale=[1.0, 1.0], nu=1.5)
               + WhiteKernel(noise_level=0.1))
     return MultiOutputRegressor(
         GaussianProcessRegressor(
@@ -66,23 +44,15 @@ def _make_gpr():
         )
     )
 
-MODEL_FACTORIES = {
-    'Gradient Boosting': _make_gbr,
-    'Random Forest':     _make_rf,
-    'Gaussian Process':  _make_gpr,
-}
-
-
 # ────────────────────────────────────────────────────────────────
 # Training & evaluation
 # ────────────────────────────────────────────────────────────────
-def train_all_models(df: pd.DataFrame) -> dict:
+def train_model(df: pd.DataFrame) -> dict:
     """
-    Train every model variant, evaluate with LOOCV, and pick the best.
+    Train the Gaussian Process Regressor and evaluate with LOOCV.
 
     Returns a dict with keys:
-        models, results, best_model_name, best_model,
-        scaler_X, scaler_y, feature_cols, target_cols
+        model, results, scaler_X, scaler_y, feature_cols, target_cols
     """
     X = df[FEATURE_COLS].values
     y = df[TARGET_COLS].values
@@ -93,51 +63,41 @@ def train_all_models(df: pd.DataFrame) -> dict:
     X_sc = scaler_X.transform(X)
     y_sc = scaler_y.transform(y)
 
-    trained_models = {}
-    results = {}
+    model = _make_gpr()
+    model.fit(X_sc, y_sc)
 
-    for name, factory in MODEL_FACTORIES.items():
-        # ── train on all data ──────────────────────────────────
-        model = factory()
-        model.fit(X_sc, y_sc)
-        trained_models[name] = model
+    y_pred = scaler_y.inverse_transform(model.predict(X_sc))
 
-        y_pred = scaler_y.inverse_transform(model.predict(X_sc))
+    # ── LOOCV ─────────────────────────────────────────────
+    loo = LeaveOneOut()
+    loo_preds = np.zeros_like(y)
 
-        # ── LOOCV ─────────────────────────────────────────────
-        loo = LeaveOneOut()
-        loo_preds = np.zeros_like(y)
+    for tr, te in loo.split(X_sc):
+        m = _make_gpr()
+        m.fit(X_sc[tr], y_sc[tr])
+        loo_preds[te] = scaler_y.inverse_transform(m.predict(X_sc[te]))
 
-        for tr, te in loo.split(X_sc):
-            m = factory()
-            m.fit(X_sc[tr], y_sc[tr])
-            loo_preds[te] = scaler_y.inverse_transform(m.predict(X_sc[te]))
+    # ── per-target metrics ─────────────────────────────────
+    r2_train, rmse_train = {}, {}
+    r2_cv,    rmse_cv    = {}, {}
 
-        # ── per-target metrics ─────────────────────────────────
-        r2_train, rmse_train = {}, {}
-        r2_cv,    rmse_cv    = {}, {}
+    for i, col in enumerate(TARGET_COLS):
+        r2_train[col]   = r2_score(y[:, i], y_pred[:, i])
+        rmse_train[col] = np.sqrt(mean_squared_error(y[:, i], y_pred[:, i]))
+        r2_cv[col]      = r2_score(y[:, i], loo_preds[:, i])
+        rmse_cv[col]    = np.sqrt(mean_squared_error(y[:, i], loo_preds[:, i]))
 
-        for i, col in enumerate(TARGET_COLS):
-            r2_train[col]   = r2_score(y[:, i], y_pred[:, i])
-            rmse_train[col] = np.sqrt(mean_squared_error(y[:, i], y_pred[:, i]))
-            r2_cv[col]      = r2_score(y[:, i], loo_preds[:, i])
-            rmse_cv[col]    = np.sqrt(mean_squared_error(y[:, i], loo_preds[:, i]))
-
-        results[name] = dict(
-            r2_train=r2_train, rmse_train=rmse_train,
-            r2_cv=r2_cv,       rmse_cv=rmse_cv,
-            avg_r2_cv=np.mean(list(r2_cv.values())),
-            y_pred=y_pred,
-            loo_predictions=loo_preds,
-        )
-
-    best_name = max(results, key=lambda k: results[k]['avg_r2_cv'])
+    results = dict(
+        r2_train=r2_train, rmse_train=rmse_train,
+        r2_cv=r2_cv,       rmse_cv=rmse_cv,
+        avg_r2_cv=np.mean(list(r2_cv.values())),
+        y_pred=y_pred,
+        loo_predictions=loo_preds,
+    )
 
     return dict(
-        models=trained_models,
+        model=model,
         results=results,
-        best_model_name=best_name,
-        best_model=trained_models[best_name],
         scaler_X=scaler_X,
         scaler_y=scaler_y,
         feature_cols=FEATURE_COLS,
@@ -169,7 +129,7 @@ def predict_performance(
     ])
 
     X_sc = model_info['scaler_X'].transform(X_new)
-    y_sc = model_info['best_model'].predict(X_sc)
+    y_sc = model_info['model'].predict(X_sc)
     y    = model_info['scaler_y'].inverse_transform(y_sc)
 
     out = pd.DataFrame(y, columns=model_info['target_cols'])
