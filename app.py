@@ -29,6 +29,21 @@ from plots import (
     create_system_resistance_overlay, get_angle_color,
 )
 
+# ── Extension layer ────────────────────────────────────────────
+from app_extensions import render_sidebar_mode_selector, render_extension_page
+from fan_db import init_db, list_fans as db_list_fans, get_raw_df, get_fan_constants
+from model_store import get_or_train_model, is_model_stale
+
+init_db()   # creates tables + seeds TA18 / TA24 on first run
+
+# Build a fan_id lookup from display_name (used for model_store calls)
+def _fan_id_from_name(display_name: str) -> str:
+    return (
+        display_name.lower()
+        .replace('"', "in").replace("'", "")
+        .replace(" ", "_").strip("_")
+    )
+
 # ── Page config ────────────────────────────────────────────────
 st.set_page_config(
     page_title='Fan Performance Tool — 18" & 24"',
@@ -102,7 +117,15 @@ footer    { visibility: hidden; }
 # SIDEBAR — configuration
 # ────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown('## ⚙️ Configuration')
+    mode = render_sidebar_mode_selector()
+
+if mode != "⚙️  Fan Analysis":
+    render_extension_page(mode)
+    st.stop()
+
+with st.sidebar:
+    # ── existing Configuration section (unchanged below) ──────
+    st.markdown('### ⚙️ Configuration')
     st.markdown('---')
 
     # ── Fan selector ───────────────────────────────────────────
@@ -161,16 +184,22 @@ def _train(fan, ct, df_json):
     df  = compute_derived_quantities(df=raw, fan=fan, constants=dict(ct))
     return train_all_models(df)
 
-ct      = tuple(sorted(constants.items()))
+# _train replaced by model_store — only retrains when data changed
+ct = tuple(sorted(constants.items()))
 df_json = raw_df.to_json()
-df  = _compute(selected_fan, ct, df_json)
+df = _compute(selected_fan, ct, df_json)
+
 try:
-    mi  = _train(selected_fan, ct, df_json)
+    _fan_id = _fan_id_from_name(selected_fan)
+    mi = get_or_train_model(
+        fan_id=_fan_id,
+        df_computed=df,
+        force_retrain=False,
+    )
 except Exception as _train_err:
     st.error(f'❌ ML training failed: {_train_err}')
     if st.button('🔄 Clear Cache & Retry'):
         st.cache_data.clear()
-        st.cache_resource.clear()
         st.rerun()
     st.stop()
 

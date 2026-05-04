@@ -1,0 +1,7 @@
+{
+  "fan_id": "33in_TA",
+  "data_hash": "99cbcb6be22ad36fe40cf2c617af77a6411039e45e36af4a57f72747668cb392",
+  "best_model_name": "Gradient Boosting",
+  "avg_r2_cv": 0.9096059018076954,
+  "saved_at": "2026-05-04T11:21:09"
+}

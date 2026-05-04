@@ -39,8 +39,13 @@ TARGET_COLS  = ['SP', 'Qt_CMH', 'Q_CMH', 'FSP', 'FTP',
 def _make_gbr():
     return MultiOutputRegressor(
         GradientBoostingRegressor(
-            n_estimators=200, max_depth=3, learning_rate=0.1,
-            min_samples_split=3, min_samples_leaf=2, random_state=42,
+            n_estimators=500,       # more trees = finer, smoother steps
+            max_depth=2,            # shallower = smoother surface
+            learning_rate=0.05,     # lower LR compensates for more trees
+            subsample=0.8,          # stochastic boosting smooths predictions
+            min_samples_split=3,
+            min_samples_leaf=2,
+            random_state=42,
         )
     )
 
@@ -156,7 +161,7 @@ def predict_performance(
     target quantities using the best trained model.
     """
     if del_p_range is None:
-        del_p_range = np.linspace(0.1, 16, n_points)
+        del_p_range = np.linspace(0.1, 16, 200)   # was 50 — more points = smoother line
 
     X_new = np.column_stack([
         np.full(len(del_p_range), angle),

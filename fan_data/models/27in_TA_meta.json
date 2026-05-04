@@ -1,0 +1,7 @@
+{
+  "fan_id": "27in_TA",
+  "data_hash": "08a286d5d3a1986008b090484306666923e21fee94fd6064d4e643466f7e639b",
+  "best_model_name": "Gaussian Process",
+  "avg_r2_cv": 0.856613978875924,
+  "saved_at": "2026-05-04T11:18:37"
+}
