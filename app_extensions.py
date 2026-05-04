@@ -107,7 +107,7 @@ def render_sidebar_mode_selector() -> str:
     """
     st.markdown("## 🌀 Axial Fan Tool")
     st.markdown("---")
-    mode = st.radio("**Mode**", MODES, key="app_mode")
+    mode = st.radio("**Mode**", MODES, index=3, key="app_mode")
     st.markdown("---")
     return mode
 
