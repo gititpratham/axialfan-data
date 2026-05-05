@@ -107,7 +107,7 @@ def render_sidebar_mode_selector() -> str:
     """
     st.markdown("## 🌀 Axial Fan Tool")
     st.markdown("---")
-    mode = st.radio("**Mode**", MODES, index=3, key="app_mode")
+    mode = st.radio("**Mode**", MODES, key="app_mode")
     st.markdown("---")
     return mode
 
@@ -412,7 +412,7 @@ def _page_model_store() -> None:
         stale = is_model_stale(fid)
         rows.append({
             "Fan": fan["display_name"],
-            "Model": "GPR (Matérn)" if meta else "—",
+            "Model": meta["best_model_name"] if meta else "—",
             "Avg CV R²": f"{meta['avg_r2_cv']:.4f}" if meta else "—",
             "Saved At": meta.get("saved_at", "—") if meta else "—",
             "Status": "⚠️ Stale" if stale else ("✅ Fresh" if meta else "❌ None"),
@@ -460,8 +460,8 @@ def _page_model_store() -> None:
                 computed = compute_derived_quantities(df=raw, constants=constants)
                 mi = get_or_train_model(fan_id, computed, force_retrain=True)
                 st.success(
-                    f"✅ Model trained: **GPR (Matérn)** — "
-                    f"Avg CV R² = {mi['results']['avg_r2_cv']:.4f}"
+                    f"✅ Best model: **{mi['best_model_name']}** — "
+                    f"Avg CV R² = {mi['results'][mi['best_model_name']]['avg_r2_cv']:.4f}"
                 )
                 st.rerun()
             except Exception as e:
@@ -484,7 +484,8 @@ def _page_model_store() -> None:
                 constants = get_fan_constants(fan_id)
                 computed = compute_derived_quantities(df=raw, constants=constants)
                 mi = get_or_train_model(fan_id, computed, force_retrain=False)
-                res = mi["results"]
+                best = mi["best_model_name"]
+                res = mi["results"][best]
 
                 mdf = pd.DataFrame({
                     "Target": TARGET_COLS,
@@ -581,7 +582,7 @@ def _page_cross_fan_selection() -> None:
     # ── Requirements ─────────────────────────────────────────────────────────
     st.markdown("### 📋 System Requirements")
     rc1, rc2, rc3 = st.columns([1, 1, 1])
-    req_cmh = rc1.number_input("Required Volume (CMH)", 100, 500_000, 5000, 100, key="cfs_cmh")
+    req_cmh = rc1.number_input("Required Volume (CMH)", 100, 500_000, 10000, 100, key="cfs_cmh")
     req_sp  = rc2.number_input("Required SP (mm WG)",   0.0, 200.0,   10.0, 0.5,  key="cfs_sp")
     run_btn = rc3.button("🔍 Find Best Fan", type="primary",
                           use_container_width=True, key="cfs_run")

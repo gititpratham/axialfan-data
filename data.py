@@ -189,7 +189,7 @@ def compute_derived_quantities(
     df['WTd'] = WTd
 
     # 3  Input power  (kW)
-    df['Mi_kW'] = (df['W1'] + df['W2']) * CW / 1000
+    df['Mi_kW'] = (df['W1'] + df['W2']) * CW
 
     # 4  Power factor  (3-phase, two-wattmeter)
     df['PF'] = (df['Mi_kW'] * 1000
