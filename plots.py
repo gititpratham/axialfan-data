@@ -124,15 +124,15 @@ def create_power_curve(df):
         d = df[df['ANGLE'] == angle].sort_values('Q_CMH')
         c = get_angle_color(angle)
         fig.add_trace(go.Scatter(
-            x=d['Q_CMH'], y=d['BKW'] * 1000,
+            x=d['Q_CMH'], y=d['BKW'],
             mode='lines+markers', name=f'{angle}°',
             line=dict(color=c, width=2.5),
             marker=dict(color=c, size=7),
-            hovertemplate='Q: %{x:.0f} CMH<br>Power: %{y:.1f} W<extra></extra>',
+            hovertemplate='Q: %{x:.0f} CMH<br>Power: %{y:.3f} kW<extra></extra>',
         ))
     fig.update_layout(**_base_layout(
         '⚡ Power Curve — Volume vs Brake Power',
-        'Volume Flow Rate (CMH)', 'Brake Power (W)'))
+        'Volume Flow Rate (CMH)', 'Brake Power (kW)'))
     return fig
 
 
@@ -203,7 +203,7 @@ def create_angle_comparison(df):
             'Max FSP (mm WG)':    d['FSP'].max(),
             'Max Static Eff (%)': d['Static_Eff'].max(),
             'Max Total Eff (%)':  d['Total_Eff'].max(),
-            'Max BKW (W)':        d['BKW'].max() * 1000,
+            'Max BKW (kW)':       d['BKW'].max(),
             'BEP Volume (CMH)':   d.loc[d['Total_Eff'].idxmax(), 'Q_CMH'],
         })
     sdf = pd.DataFrame(rows)
@@ -325,7 +325,7 @@ def create_ml_prediction_curves(pred_df, actual_df=None, angle=None):
             legendgroup='pred', showlegend=sl), row=r, col=c)
 
     _add_pred('FSP',        1, 1)
-    _add_pred('BKW',        1, 2, 1000, False)
+    _add_pred('BKW',        1, 2, 1, False)
     _add_pred('Static_Eff', 2, 1, sl=False)
     _add_pred('Total_Eff',  2, 2, sl=False)
 
@@ -339,7 +339,7 @@ def create_ml_prediction_curves(pred_df, actual_df=None, angle=None):
                       legendgroup=f'a{a}')
             fig.add_trace(go.Scatter(x=d['Q_CMH'], y=d['FSP'],
                           name=f'Actual {a}°', **kw), row=1, col=1)
-            fig.add_trace(go.Scatter(x=d['Q_CMH'], y=d['BKW']*1000,
+            fig.add_trace(go.Scatter(x=d['Q_CMH'], y=d['BKW'],
                           showlegend=False, **kw), row=1, col=2)
             fig.add_trace(go.Scatter(x=d['Q_CMH'], y=d['Static_Eff'],
                           showlegend=False, **kw), row=2, col=1)
@@ -354,7 +354,7 @@ def create_ml_prediction_curves(pred_df, actual_df=None, angle=None):
         fig.update_xaxes(title_text='Volume (CMH)', gridcolor=_GRID, row=1, col=c)
         fig.update_xaxes(title_text='Volume (CMH)', gridcolor=_GRID, row=2, col=c)
     fig.update_yaxes(title_text='FSP (mm WG)',   gridcolor=_GRID, row=1, col=1)
-    fig.update_yaxes(title_text='Power (W)',     gridcolor=_GRID, row=1, col=2)
+    fig.update_yaxes(title_text='Power (kW)',     gridcolor=_GRID, row=1, col=2)
     fig.update_yaxes(title_text='Static Eff (%)', gridcolor=_GRID, row=2, col=1)
     fig.update_yaxes(title_text='Total Eff (%)',  gridcolor=_GRID, row=2, col=2)
     return fig

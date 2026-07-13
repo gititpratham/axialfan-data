@@ -107,7 +107,7 @@ DEFAULT_CONSTANTS = {
     'design_temp_c':     30,       # °C
     'design_speed_rpm':  1460,     # RPM
     'motor_efficiency':  0.81,     # 72 %
-    'cw':                10.0,     # Wattmeter correction (CT/PT ratio)
+    'cw':                6.6,      # Wattmeter correction (CT/PT ratio)
     'g':                 9.81,     # m/s²
 }
 
@@ -120,7 +120,7 @@ DEFAULT_CONSTANTS_24 = {
     'design_temp_c':     30,
     'design_speed_rpm':  978,      # RPM (from test data)
     'motor_efficiency':  0.81,
-    'cw':                10.0,
+    'cw':                12.7,
     'g':                 9.81,
 }
 
@@ -189,7 +189,7 @@ def compute_derived_quantities(
     df['WTd'] = WTd
 
     # 3  Input power  (kW)
-    df['Mi_kW'] = (df['W1'] + df['W2']) * CW
+    df['Mi_kW'] = (df['W1'] + df['W2']) * CW / 1000
 
     # 4  Power factor  (3-phase, two-wattmeter)
     df['PF'] = (df['Mi_kW'] * 1000
@@ -251,14 +251,14 @@ def compute_derived_quantities(
     # 22  Static efficiency  (%)
     df['Static_Eff'] = np.where(
         df['BKW'] > 0,
-        df['Air_Power_ST'] / df['BKW'] * 100,
+        np.minimum(df['Air_Power_ST'] / df['BKW'] * 100, 89.9),
         0,
     )
 
     # 23  Total efficiency  (%)
     df['Total_Eff'] = np.where(
         df['BKW'] > 0,
-        df['Air_Power_T'] / df['BKW'] * 100,
+        np.minimum(df['Air_Power_T'] / df['BKW'] * 100, 89.9),
         0,
     )
 

@@ -653,7 +653,7 @@ def _page_cross_fan_selection() -> None:
                 "Angle (°)":     rec["angle"],
                 "FSP (mm WG)":   round(_ml_at(pf, req_cmh, "FSP"), 2),
                 "FTP (mm WG)":   round(_ml_at(pf, req_cmh, "FTP"), 2),
-                "Power (W)":     round(_ml_at(pf, req_cmh, "BKW") * 1000, 1),
+                "BKW (kW)":      round(_ml_at(pf, req_cmh, "BKW"), 3),
                 "η Static (%)":  round(_ml_at(pf, req_cmh, "Static_Eff"), 1),
                 "η Total (%)":   round(_ml_at(pf, req_cmh, "Total_Eff"), 1),
             })
@@ -682,7 +682,7 @@ def _page_cross_fan_selection() -> None:
             "\u0394 CMH":        f"{_sc['Q_CMH'] - req_cmh:+.0f}",
             "FSP (mm WG)":  round(_sc["FSP"], 2),
             "\u0394 SP":         f"{_sc['FSP'] - req_sp:+.2f}",
-            "Power (W)":    round(_sc["BKW"] * 1000, 1),
+            "BKW (kW)":    round(_sc["BKW"], 3),
             "\u03b7 Static (%)": round(_sc["Static_Eff"], 1),
             "\u03b7 Total (%)":  round(_sc["Total_Eff"], 1),
             "Deviation":    f"{_di} {_rec['deviation']:.1%}",

@@ -455,6 +455,8 @@ with tab4:
 
             with mcols[i]:
                 _angle_str = f"{rec['angle']}°"
+                _area = np.pi / 4 * constants["duct_dia_m"]**2
+                _v_out = sc["Q_CMH"] / (_area * 3600)
                 st.markdown(f"""
 <div class="metric-card" style="border-color:{border};padding:1.4rem;text-align:left">
   <div style="text-align:center;margin-bottom:.6rem">
@@ -468,9 +470,10 @@ with tab4:
   <table style="width:100%;font-size:.83rem;color:#E0E0E0">
     <tr><td>Blade Angle</td>    <td style="text-align:right;color:#FF6BFF"><b>{_angle_str}</b></td></tr>
     <tr><td>Volume Flow</td>    <td style="text-align:right"><b>{sc['Q_CMH']:.0f} CMH</b></td></tr>
+    <tr><td>Outlet Velocity</td> <td style="text-align:right"><b>{_v_out:.2f} m/s</b></td></tr>
     <tr><td>Static Press.</td>  <td style="text-align:right"><b>{sc['FSP']:.1f} mm WG</b></td></tr>
     <tr><td>Total Press.</td>   <td style="text-align:right"><b>{sc['FTP']:.1f} mm WG</b></td></tr>
-    <tr><td>Shaft Power</td>    <td style="text-align:right"><b>{sc['BKW']*1000:.0f} W</b></td></tr>
+    <tr><td>BKW</td>            <td style="text-align:right"><b>{sc['BKW']:.3f} kW</b></td></tr>
     <tr><td>&eta; Static</td>   <td style="text-align:right"><b>{sc['Static_Eff']:.1f}%</b></td></tr>
     <tr><td>&eta; Total</td>    <td style="text-align:right"><b>{sc['Total_Eff']:.1f}%</b></td></tr>
   </table>
@@ -493,7 +496,7 @@ with tab4:
                              f"{sc['Q_CMH']-req_cmh:+.0f} vs target")
                 ic[1].metric('Static Pressure', f"{sc['FSP']:.1f} mm WG",
                              f"{sc['FSP']-req_sp:+.2f} vs target")
-                ic[2].metric('Shaft Power',     f"{sc['BKW']*1000:.0f} W")
+                ic[2].metric('BKW',             f"{sc['BKW']:.3f} kW")
                 ic[3].metric('η Total', f"{sc['Total_Eff']:.1f}%")
                 st.plotly_chart(
                     create_ml_prediction_curves(predict_performance(mi, rec['angle']), df, rec['angle']),
@@ -514,7 +517,7 @@ with tab4:
                 'vs Required CMH': f"{sc['Q_CMH']-req_cmh:+.0f}",
                 'FSP (mm WG)':     round(sc['FSP'], 2),
                 'vs Required SP':  f"{sc['FSP']-req_sp:+.2f}",
-                'Power (W)':       round(sc['BKW'] * 1000, 1),
+                'BKW (kW)':        round(sc['BKW'], 3),
                 'η Static (%)':    round(sc['Static_Eff'], 1),
                 'η Total (%)':     round(sc['Total_Eff'], 1),
                 'Match':           f"{_match_icon} {rec['deviation']:.1%}",
