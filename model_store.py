@@ -117,7 +117,7 @@ def list_stored_models() -> list[dict]:
 
 
 def predict_for_fan(fan_id: str, df_computed, angle: float,
-                    del_p_range=None, n_points: int = 50):
+                    q_cmh_range=None, n_points: int = 50):
     """
     Load the stored model for *fan_id* and run predict_performance.
     Returns a DataFrame of predicted performance at *angle*.
@@ -130,7 +130,7 @@ def predict_for_fan(fan_id: str, df_computed, angle: float,
             f"No stored model for '{fan_id}'. Run get_or_train_model first."
         )
     model_info = _reattach_loocv(model_info, df_computed)
-    return predict_performance(model_info, angle, del_p_range, n_points)
+    return predict_performance(model_info, angle, q_cmh_range, n_points)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -424,7 +424,7 @@ with tab3:
             use_container_width=True)
 
     with st.expander('📋 View Predicted Data'):
-        p_show = prd[['ANGLE', 'DEL_P', 'SP', 'Q_CMH', 'FSP',
+        p_show = prd[['ANGLE', 'Q_CMH', 'SP', 'FSP',
                        'FTP', 'BKW', 'Static_Eff', 'Total_Eff']].round(2)
         st.dataframe(p_show, use_container_width=True, hide_index=True)
         st.download_button('📥 Download Predictions', p_show.to_csv(index=False),

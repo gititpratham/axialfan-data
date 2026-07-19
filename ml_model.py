@@ -3,11 +3,16 @@ from __future__ import annotations
 """
 ml_model.py — Machine-learning models for fan performance prediction.
 
-Trains Gradient Boosting, Random Forest, and Gaussian Process regressors
-on the computed fan-test data (25 rows, 5 blade angles).
+Trains a Gaussian Process Regressor on the computed fan-test data
+(25 rows, 5 blade angles).
 
-Features : [ANGLE, DEL_P]
-Targets  : [SP, Qt_CMH, Q_CMH, FSP, FTP, BKW, Static_Eff, Total_Eff]
+Features : [ANGLE, Q_CMH]   — blade setting + volume flow rate
+Targets  : [SP, FSP, FTP, BKW, Static_Eff, Total_Eff]
+
+Q_CMH is now a FEATURE (not a target) — this is the standard fan
+performance-map formulation: given blade angle and flow, predict
+pressures and power.  DEL_P is used only inside compute_derived_quantities
+and is no longer passed to the ML layer.
 
 Uses Leave-One-Out Cross-Validation for honest evaluation on small data.
 """
@@ -27,9 +32,11 @@ from sklearn.metrics import r2_score, mean_squared_error
 # ────────────────────────────────────────────────────────────────
 # Column definitions
 # ────────────────────────────────────────────────────────────────
-FEATURE_COLS = ['ANGLE', 'DEL_P']
-TARGET_COLS  = ['SP', 'Qt_CMH', 'Q_CMH', 'FSP', 'FTP',
-                'BKW', 'Static_Eff', 'Total_Eff']
+# Q_CMH is now a FEATURE (the operating point on the fan curve).
+# Qt_CMH and Q_CMH are removed from targets — Q_CMH is the input,
+# Qt_CMH = Q_CMH / (N/RPM) can be back-calculated if needed.
+FEATURE_COLS = ['ANGLE', 'Q_CMH']
+TARGET_COLS  = ['SP', 'FSP', 'FTP', 'BKW', 'Static_Eff', 'Total_Eff']
 
 
 # ────────────────────────────────────────────────────────────────
@@ -105,6 +112,8 @@ def train_model(df: pd.DataFrame) -> dict:
         target_cols=TARGET_COLS,
         min_angle=float(df['ANGLE'].min()),
         max_angle=float(df['ANGLE'].max()),
+        min_q_cmh=float(df['Q_CMH'].min()),
+        max_q_cmh=float(df['Q_CMH'].max()),
     )
 
 
@@ -114,21 +123,23 @@ def train_model(df: pd.DataFrame) -> dict:
 def predict_performance(
     model_info: dict,
     angle: float,
-    del_p_range=None,
+    q_cmh_range=None,
     n_points: int = 50,
 ) -> pd.DataFrame:
     """
     Predict full fan performance at an arbitrary blade angle.
 
-    Sweeps DEL_P (velocity head) from 0.1 to 16 and predicts all
+    Sweeps Q_CMH across the training data range and predicts all
     target quantities using the best trained model.
     """
-    if del_p_range is None:
-        del_p_range = np.linspace(0.1, 16, 200)   # was 50 — more points = smoother line
+    if q_cmh_range is None:
+        q_min = model_info.get('min_q_cmh', 500.0)
+        q_max = model_info.get('max_q_cmh', 15000.0)
+        q_cmh_range = np.linspace(q_min, q_max, max(n_points, 200))
 
     X_new = np.column_stack([
-        np.full(len(del_p_range), angle),
-        del_p_range,
+        np.full(len(q_cmh_range), angle),
+        q_cmh_range,
     ])
 
     X_sc = model_info['scaler_X'].transform(X_new)
@@ -137,7 +148,7 @@ def predict_performance(
 
     out = pd.DataFrame(y, columns=model_info['target_cols'])
     out['ANGLE'] = angle
-    out['DEL_P'] = del_p_range
+    out['Q_CMH'] = q_cmh_range
     return out
 
 
@@ -147,23 +158,27 @@ def find_best_operating_point(
     required_sp: float,
 ) -> tuple:
     """
-    Search over angles min_angle–max_angle to find the blade setting that best
+    Search over (angle, Q_CMH) space to find the blade setting that best
     delivers the requested volume & static pressure.
 
     Returns (best_angle, best_row, min_distance).
     """
     min_angle = model_info.get('min_angle', 18.0)
     max_angle = model_info.get('max_angle', 48.0)
-    angles = np.linspace(min_angle, max_angle, 100)
+    q_min     = model_info.get('min_q_cmh', 500.0)
+    q_max     = model_info.get('max_q_cmh', 15000.0)
+
+    angles    = np.linspace(min_angle, max_angle, 60)
+    q_range   = np.linspace(q_min, q_max, 80)
     best_result = None
     best_angle  = None
     min_dist    = float('inf')
 
     for angle in angles:
-        pred = predict_performance(model_info, angle, n_points=80)
+        pred = predict_performance(model_info, angle, q_range, n_points=len(q_range))
         for _, row in pred.iterrows():
             dq = (row['Q_CMH'] - required_cmh) / max(required_cmh, 1)
-            ds = ((row['FSP'] - required_sp) / max(abs(required_sp), 0.1))
+            ds = (row['FSP']   - required_sp)  / max(abs(required_sp), 0.1)
             d  = np.sqrt(dq**2 + ds**2)
             if d < min_dist:
                 min_dist    = d
