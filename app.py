@@ -484,12 +484,8 @@ with tab4:
             with mcols[i]:
                 _angle_str = f"{rec['angle']}°"
                 _area = np.pi / 4 * constants["duct_dia_m"]**2
-                # Outlet velocity is PURE GEOMETRY: V = Q / (A × 3600)
-                # Must use req_cmh (exact) — not sc["Q_CMH"] (ML approximation)
-                # Volume Flow row shows sc["Q_CMH"] (what the fan delivers at this angle)
-                # Outlet Velocity shows velocity at the REQUIRED flow point
-                _v_out_req = req_cmh / (_area * 3600)       # exact — at required Q
-                _v_out_del = sc["Q_CMH"] / (_area * 3600)   # at delivered Q (for reference)
+                # V_out is pure geometry: V = req_cmh / (A × 3600) — exact, no ML
+                _v_out_req = req_cmh / (_area * 3600)
                 st.markdown(f"""
 <div class="metric-card" style="border-color:{border};padding:1.4rem;text-align:left">
   <div style="text-align:center;margin-bottom:.6rem">
@@ -501,15 +497,14 @@ with tab4:
   </div>
   <hr style="border-color:rgba(255,255,255,.1);margin:.5rem 0">
   <table style="width:100%;font-size:.83rem;color:#E0E0E0">
-    <tr><td>Blade Angle</td>       <td style="text-align:right;color:#FF6BFF"><b>{_angle_str}</b></td></tr>
-    <tr><td>Volume Flow</td>       <td style="text-align:right"><b>{convert_flow_out(sc['Q_CMH']):.0f} {unit}</b></td></tr>
-    <tr><td>Outlet Vel. (req)</td> <td style="text-align:right;color:#00FF85"><b>{_v_out_req:.2f} m/s</b></td></tr>
-    <tr><td>Outlet Vel. (del)</td> <td style="text-align:right"><b>{_v_out_del:.2f} m/s</b></td></tr>
-    <tr><td>Static Press.</td>     <td style="text-align:right"><b>{sc['FSP']:.1f} mm WG</b></td></tr>
-    <tr><td>Total Press.</td>      <td style="text-align:right"><b>{sc['FTP']:.1f} mm WG</b></td></tr>
-    <tr><td>BKW</td>               <td style="text-align:right"><b>{sc['BKW']:.3f} kW</b></td></tr>
-    <tr><td>&eta; Static</td>      <td style="text-align:right"><b>{sc['Static_Eff']:.1f}%</b></td></tr>
-    <tr><td>&eta; Total</td>       <td style="text-align:right"><b>{sc['Total_Eff']:.1f}%</b></td></tr>
+    <tr><td>Blade Angle</td>      <td style="text-align:right;color:#FF6BFF"><b>{_angle_str}</b></td></tr>
+    <tr><td>Volume Flow</td>      <td style="text-align:right"><b>{convert_flow_out(sc['Q_CMH']):.0f} {unit}</b></td></tr>
+    <tr><td>Outlet Velocity</td>  <td style="text-align:right"><b>{_v_out_req:.2f} m/s</b></td></tr>
+    <tr><td>Static Press.</td>    <td style="text-align:right"><b>{sc['FSP']:.1f} mm WG</b></td></tr>
+    <tr><td>Total Press.</td>     <td style="text-align:right"><b>{sc['FTP']:.1f} mm WG</b></td></tr>
+    <tr><td>BKW</td>              <td style="text-align:right"><b>{sc['BKW']:.3f} kW</b></td></tr>
+    <tr><td>&eta; Static</td>     <td style="text-align:right"><b>{sc['Static_Eff']:.1f}%</b></td></tr>
+    <tr><td>&eta; Total</td>      <td style="text-align:right"><b>{sc['Total_Eff']:.1f}%</b></td></tr>
   </table>
   <hr style="border-color:rgba(255,255,255,.1);margin:.5rem 0">
   <div style="text-align:center;color:{dev_color};font-size:.82rem;font-weight:600">
@@ -544,18 +539,16 @@ with tab4:
         st.markdown('#### 📋 Side-by-Side Comparison')
         tbl = []
         _tbl_area = np.pi / 4 * constants["duct_dia_m"]**2
-        _v_req = req_cmh / (_tbl_area * 3600)   # exact — same for all motor rows
+        _v_out = req_cmh / (_tbl_area * 3600)   # exact geometry — same for every motor row
         for rec in motor_recs:
             m, sc = rec['motor'], rec['scaled']
             _match_icon = '✅' if rec['deviation'] < 0.3 else '⚠️'
-            _v_del = sc['Q_CMH'] / (_tbl_area * 3600)
             tbl.append({
                 'Motor':               m['label'],
                 'Blade Angle (°)':     rec['angle'],
                 f'Volume ({unit})':    round(convert_flow_out(sc['Q_CMH'])),
                 f'vs Required {unit}': f"{convert_flow_out(sc['Q_CMH'])-convert_flow_out(req_cmh):+.0f}",
-                'V req (m/s)':         round(_v_req, 2),
-                'V del (m/s)':         round(_v_del, 2),
+                'Outlet V (m/s)':      round(_v_out, 2),
                 'FSP (mm WG)':         round(sc['FSP'], 2),
                 'vs Required SP':      f"{sc['FSP']-req_sp:+.2f}",
                 'BKW (kW)':            round(sc['BKW'], 3),
@@ -564,8 +557,6 @@ with tab4:
                 'Match':               f"{_match_icon} {rec['deviation']:.1%}",
                 'Best':                '🏆' if rec['recommended'] else '',
             })
-        st.markdown('> **V req** = outlet velocity at your required flow (exact geometry)  '
-                    '| **V del** = velocity at the fan\'s delivered flow (ML estimate)')
         st.dataframe(pd.DataFrame(tbl), use_container_width=True, hide_index=True)
 
     # BEP table (always visible)
