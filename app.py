@@ -398,7 +398,7 @@ with tab3:
     st.markdown('---')
     st.markdown('### 🎯 Predicted vs Actual (LOOCV)')
     pva_t = st.selectbox('Target variable', TARGET_COLS,
-                          index=TARGET_COLS.index('Q_CMH'), key='pva')
+                          index=TARGET_COLS.index('FSP'), key='pva')
     st.plotly_chart(create_prediction_vs_actual(df, mi, pva_t),
                     use_container_width=True)
 

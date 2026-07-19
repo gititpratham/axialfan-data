@@ -431,7 +431,7 @@ def _page_model_store() -> None:
         stale = is_model_stale(fid)
         rows.append({
             "Fan": fan["display_name"],
-            "Model": meta["best_model_name"] if meta else "—",
+            "Model": meta.get("best_model_name", "GPR (Matérn)") if meta else "—",
             "Avg CV R²": f"{meta['avg_r2_cv']:.4f}" if meta else "—",
             "Saved At": meta.get("saved_at", "—") if meta else "—",
             "Status": "⚠️ Stale" if stale else ("✅ Fresh" if meta else "❌ None"),
