@@ -34,6 +34,23 @@ from app_extensions import render_sidebar_mode_selector, render_extension_page
 from fan_db import init_db, list_fans as db_list_fans, get_raw_df, get_fan_constants
 from model_store import get_or_train_model, is_model_stale
 
+# ── Unit Conversion Helpers ────────────────────────────────────
+CMH_TO_CFM = 0.588577779
+CFM_TO_CMH = 1.69901082
+
+def convert_flow_out(cmh):
+    if st.session_state.get('flow_unit', 'CMH') == 'CFM':
+        return cmh * CMH_TO_CFM
+    return cmh
+
+def convert_flow_in(user_input):
+    if st.session_state.get('flow_unit', 'CMH') == 'CFM':
+        return user_input * CFM_TO_CMH
+    return user_input
+
+def flow_unit_label():
+    return st.session_state.get('flow_unit', 'CMH')
+
 init_db()   # creates tables + seeds TA18 / TA24 on first run
 
 # Build a fan_id lookup from display_name (used for model_store calls)
@@ -216,7 +233,7 @@ st.markdown(f"""
 c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric('📏 Fan Name',     selected_display_name,              f'{constants["duct_dia_m"]*1000:.0f} mm')
 c2.metric('🔄 Design RPM',   f'{constants["design_speed_rpm"]}', 'RPM')
-c3.metric('💨 Max Volume',   f'{df["Q_CMH"].max():.0f}',         'CMH')
+c3.metric('💨 Max Volume',   f'{convert_flow_out(df["Q_CMH"].max()):.0f}', flow_unit_label())
 c4.metric('📊 Max FSP',      f'{df["FSP"].max():.1f}',           'mm WG')
 c5.metric('🎯 Peak η',       f'{df["Total_Eff"].max():.1f}%',    'Total')
 
@@ -269,7 +286,13 @@ with tab1:
         'Air_Power_ST', 'Air_Power_T', 'Static_Eff', 'Total_Eff',
         'Motor_Input',
     ]
-    show_df = df[show_cols].round(4)
+    show_df = df[show_cols].copy()
+    unit = flow_unit_label()
+    if unit == 'CFM':
+        show_df['Qt_CMH'] = show_df['Qt_CMH'] * CMH_TO_CFM
+        show_df['Q_CMH'] = show_df['Q_CMH'] * CMH_TO_CFM
+        show_df = show_df.rename(columns={'Qt_CMH': 'Qt_CFM', 'Q_CMH': 'Q_CFM'})
+    show_df = show_df.round(4)
     st.dataframe(show_df, use_container_width=True, height=400)
     st.download_button('📥 Download CSV', show_df.to_csv(index=False),
                        'fan_computed_data.csv', 'text/csv')
@@ -418,7 +441,12 @@ with tab4:
                 unsafe_allow_html=True)
 
     s1, s2, s3 = st.columns(3)
-    req_cmh = s1.number_input('Required Volume (CMH)', 100, 50000, 5000, 100)
+    unit = flow_unit_label()
+    if unit == 'CFM':
+        req_val = s1.number_input('Required Volume (CFM)', int(100 * CMH_TO_CFM), int(50000 * CMH_TO_CFM), int(5000 * CMH_TO_CFM), int(100 * CMH_TO_CFM))
+        req_cmh = req_val * CFM_TO_CMH
+    else:
+        req_cmh = s1.number_input('Required Volume (CMH)', 100, 50000, 5000, 100)
     req_sp  = s2.number_input('Required SP (mm WG)',    0.0, 60.0,  10.0, 0.5)
     find    = s3.button('🔍 Find Best Configuration', type='primary',
                         use_container_width=True)
@@ -469,7 +497,7 @@ with tab4:
   <hr style="border-color:rgba(255,255,255,.1);margin:.5rem 0">
   <table style="width:100%;font-size:.83rem;color:#E0E0E0">
     <tr><td>Blade Angle</td>    <td style="text-align:right;color:#FF6BFF"><b>{_angle_str}</b></td></tr>
-    <tr><td>Volume Flow</td>    <td style="text-align:right"><b>{sc['Q_CMH']:.0f} CMH</b></td></tr>
+    <tr><td>Volume Flow</td>    <td style="text-align:right"><b>{convert_flow_out(sc['Q_CMH']):.0f} {unit}</b></td></tr>
     <tr><td>Outlet Velocity</td> <td style="text-align:right"><b>{_v_out:.2f} m/s</b></td></tr>
     <tr><td>Static Press.</td>  <td style="text-align:right"><b>{sc['FSP']:.1f} mm WG</b></td></tr>
     <tr><td>Total Press.</td>   <td style="text-align:right"><b>{sc['FTP']:.1f} mm WG</b></td></tr>
@@ -491,9 +519,11 @@ with tab4:
             _pfx  = '🏆 ' if rec['recommended'] else ''
             label = f"{_pfx}{m['label']} — Blade {rec['angle']}°"
             with st.expander(label, expanded=rec['recommended']):
+                flow_val = convert_flow_out(sc['Q_CMH'])
+                flow_target = convert_flow_out(req_cmh)
                 ic = st.columns(4)
-                ic[0].metric('Volume',          f"{sc['Q_CMH']:.0f} CMH",
-                             f"{sc['Q_CMH']-req_cmh:+.0f} vs target")
+                ic[0].metric('Volume',          f"{flow_val:.0f} {unit}",
+                             f"{flow_val-flow_target:+.0f} vs target")
                 ic[1].metric('Static Pressure', f"{sc['FSP']:.1f} mm WG",
                              f"{sc['FSP']-req_sp:+.2f} vs target")
                 ic[2].metric('BKW',             f"{sc['BKW']:.3f} kW")
@@ -513,8 +543,8 @@ with tab4:
             tbl.append({
                 'Motor':           m['label'],
                 'Blade Angle (°)': rec['angle'],
-                'Volume (CMH)':    round(sc['Q_CMH']),
-                'vs Required CMH': f"{sc['Q_CMH']-req_cmh:+.0f}",
+                f'Volume ({unit})':    round(convert_flow_out(sc['Q_CMH'])),
+                f'vs Required {unit}': f"{convert_flow_out(sc['Q_CMH'])-convert_flow_out(req_cmh):+.0f}",
                 'FSP (mm WG)':     round(sc['FSP'], 2),
                 'vs Required SP':  f"{sc['FSP']-req_sp:+.2f}",
                 'BKW (kW)':        round(sc['BKW'], 3),
@@ -535,12 +565,12 @@ with tab4:
         br = ad.loc[bi]
         bep_rows.append({
             'Angle (°)':      angle,
-            'Volume at BEP':  round(br['Q_CMH']),
+            f'Volume at BEP ({unit})':  round(convert_flow_out(br['Q_CMH'])),
             'FSP at BEP':     round(br['FSP'], 2),
             'FTP at BEP':     round(br['FTP'], 2),
             'Static Eff (%)': round(br['Static_Eff'], 1),
             'Total Eff (%)':  round(br['Total_Eff'], 1),
-            'BKW (W)':        round(br['BKW'] * 1000, 1),
+            'BKW (kW)':       round(br['BKW'], 3),
         })
     st.dataframe(pd.DataFrame(bep_rows), use_container_width=True, hide_index=True)
 

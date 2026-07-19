@@ -36,8 +36,9 @@ TARGET_COLS  = ['SP', 'Qt_CMH', 'Q_CMH', 'FSP', 'FTP',
 # Model factories (so we can re-create identical models per CV fold)
 # ────────────────────────────────────────────────────────────────
 def _make_gpr():
-    kernel = (ConstantKernel(1.0) * Matern(length_scale=[1.0, 1.0], nu=1.5)
-              + WhiteKernel(noise_level=0.1))
+    kernel = (ConstantKernel(1.0, (1e-3, 1e3)) * 
+              Matern(length_scale=[1.0, 1.0], length_scale_bounds=(0.01, 10.0), nu=1.5) + 
+              WhiteKernel(noise_level=0.005, noise_level_bounds=(1e-6, 0.02)))
     return MultiOutputRegressor(
         GaussianProcessRegressor(
             kernel=kernel, n_restarts_optimizer=10, random_state=42,
@@ -102,6 +103,8 @@ def train_model(df: pd.DataFrame) -> dict:
         scaler_y=scaler_y,
         feature_cols=FEATURE_COLS,
         target_cols=TARGET_COLS,
+        min_angle=float(df['ANGLE'].min()),
+        max_angle=float(df['ANGLE'].max()),
     )
 
 
@@ -144,12 +147,14 @@ def find_best_operating_point(
     required_sp: float,
 ) -> tuple:
     """
-    Search over angles 18°–48° to find the blade setting that best
+    Search over angles min_angle–max_angle to find the blade setting that best
     delivers the requested volume & static pressure.
 
     Returns (best_angle, best_row, min_distance).
     """
-    angles = np.linspace(18, 48, 100)
+    min_angle = model_info.get('min_angle', 18.0)
+    max_angle = model_info.get('max_angle', 48.0)
+    angles = np.linspace(min_angle, max_angle, 100)
     best_result = None
     best_angle  = None
     min_dist    = float('inf')

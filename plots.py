@@ -11,6 +11,17 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from scipy.interpolate import griddata, interp1d
 
+def _flow_conv():
+    try:
+        import streamlit as st
+        unit = st.session_state.get('flow_unit', 'CMH')
+    except Exception:
+        unit = 'CMH'
+    
+    if unit == 'CFM':
+        return 0.588577779, 'CFM'
+    return 1.0, 'CMH'
+
 # ────────────────────────────────────────────────────────────────
 # Visual constants
 # ────────────────────────────────────────────────────────────────
@@ -69,13 +80,13 @@ def get_angle_color(angle: float) -> str:
 
 
 def _angle_traces(df, x_col, y_col, fig, hover_fmt=None, row=None, col=None,
-                  show_legend=True, dash=None):
+                  show_legend=True, dash=None, x_mul=1.0):
     """Add one trace per angle to *fig*."""
     for angle in sorted(df['ANGLE'].unique()):
         d = df[df['ANGLE'] == angle].sort_values(x_col)
         c = get_angle_color(angle)
         kw = dict(
-            x=d[x_col], y=d[y_col],
+            x=d[x_col] * x_mul, y=d[y_col],
             mode='lines+markers', name=f'{angle}°',
             line=dict(color=c, width=2.5, dash=dash),
             marker=dict(color=c, size=7),
@@ -94,11 +105,12 @@ def _angle_traces(df, x_col, y_col, fig, hover_fmt=None, row=None, col=None,
 # ────────────────────────────────────────────────────────────────
 def create_fan_curve(df):
     fig = go.Figure()
+    factor, unit = _flow_conv()
     _angle_traces(df, 'Q_CMH', 'FSP', fig,
-                  'Q: %{x:.0f} CMH<br>FSP: %{y:.2f} mm WG<extra></extra>')
+                  f'Q: %{{x:.0f}} {unit}<br>FSP: %{{y:.2f}} mm WG<extra></extra>', x_mul=factor)
     fig.update_layout(**_base_layout(
         '📊 Fan Curve — Volume vs Static Pressure',
-        'Volume Flow Rate (CMH)', 'Fan Static Pressure (mm WG)'))
+        f'Volume Flow Rate ({unit})', 'Fan Static Pressure (mm WG)'))
     return fig
 
 
@@ -107,11 +119,12 @@ def create_fan_curve(df):
 # ────────────────────────────────────────────────────────────────
 def create_ftp_curve(df):
     fig = go.Figure()
+    factor, unit = _flow_conv()
     _angle_traces(df, 'Q_CMH', 'FTP', fig,
-                  'Q: %{x:.0f} CMH<br>FTP: %{y:.2f} mm WG<extra></extra>')
+                  f'Q: %{{x:.0f}} {unit}<br>FTP: %{{y:.2f}} mm WG<extra></extra>', x_mul=factor)
     fig.update_layout(**_base_layout(
         '📊 Fan Total Pressure Curve',
-        'Volume Flow Rate (CMH)', 'Fan Total Pressure (mm WG)'))
+        f'Volume Flow Rate ({unit})', 'Fan Total Pressure (mm WG)'))
     return fig
 
 
@@ -120,19 +133,20 @@ def create_ftp_curve(df):
 # ────────────────────────────────────────────────────────────────
 def create_power_curve(df):
     fig = go.Figure()
+    factor, unit = _flow_conv()
     for angle in sorted(df['ANGLE'].unique()):
         d = df[df['ANGLE'] == angle].sort_values('Q_CMH')
         c = get_angle_color(angle)
         fig.add_trace(go.Scatter(
-            x=d['Q_CMH'], y=d['BKW'],
+            x=d['Q_CMH'] * factor, y=d['BKW'],
             mode='lines+markers', name=f'{angle}°',
             line=dict(color=c, width=2.5),
             marker=dict(color=c, size=7),
-            hovertemplate='Q: %{x:.0f} CMH<br>Power: %{y:.3f} kW<extra></extra>',
+            hovertemplate=f'Q: %{{x:.0f}} {unit}<br>Power: %{{y:.3f}} kW<extra></extra>',
         ))
     fig.update_layout(**_base_layout(
         '⚡ Power Curve — Volume vs Brake Power',
-        'Volume Flow Rate (CMH)', 'Brake Power (kW)'))
+        f'Volume Flow Rate ({unit})', 'Brake Power (kW)'))
     return fig
 
 
@@ -143,14 +157,15 @@ def create_efficiency_curves(df):
     fig = make_subplots(rows=1, cols=2,
                         subplot_titles=['Static Efficiency', 'Total Efficiency'],
                         horizontal_spacing=0.1)
-    _angle_traces(df, 'Q_CMH', 'Static_Eff', fig, row=1, col=1)
-    _angle_traces(df, 'Q_CMH', 'Total_Eff',  fig, row=1, col=2, show_legend=False)
+    factor, unit = _flow_conv()
+    _angle_traces(df, 'Q_CMH', 'Static_Eff', fig, row=1, col=1, x_mul=factor)
+    _angle_traces(df, 'Q_CMH', 'Total_Eff',  fig, row=1, col=2, show_legend=False, x_mul=factor)
 
     lo = _base_layout('🎯 Efficiency Curves', '', '', height=480)
     lo.pop('xaxis', None); lo.pop('yaxis', None)
     fig.update_layout(**lo)
     for c in (1, 2):
-        fig.update_xaxes(title_text='Volume (CMH)', gridcolor=_GRID, row=1, col=c)
+        fig.update_xaxes(title_text=f'Volume ({unit})', gridcolor=_GRID, row=1, col=c)
     fig.update_yaxes(title_text='Static Eff (%)', gridcolor=_GRID, row=1, col=1)
     fig.update_yaxes(title_text='Total Eff (%)',  gridcolor=_GRID, row=1, col=2)
     return fig
@@ -161,28 +176,29 @@ def create_efficiency_curves(df):
 # ────────────────────────────────────────────────────────────────
 def create_combined_performance(df, angle):
     d = df[df['ANGLE'] == angle].sort_values('Q_CMH')
+    factor, unit = _flow_conv()
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     fig.add_trace(go.Scatter(
-        x=d['Q_CMH'], y=d['FSP'], mode='lines+markers', name='FSP',
+        x=d['Q_CMH'] * factor, y=d['FSP'], mode='lines+markers', name='FSP',
         line=dict(color='#00D4FF', width=3), marker=dict(size=8)),
         secondary_y=False)
     fig.add_trace(go.Scatter(
-        x=d['Q_CMH'], y=d['FTP'], mode='lines+markers', name='FTP',
+        x=d['Q_CMH'] * factor, y=d['FTP'], mode='lines+markers', name='FTP',
         line=dict(color='#00FF85', width=3, dash='dash'), marker=dict(size=8)),
         secondary_y=False)
     fig.add_trace(go.Scatter(
-        x=d['Q_CMH'], y=d['Static_Eff'], mode='lines+markers',
+        x=d['Q_CMH'] * factor, y=d['Static_Eff'], mode='lines+markers',
         name='Static Eff', line=dict(color='#FFD700', width=2.5),
         marker=dict(size=7, symbol='diamond')),
         secondary_y=True)
     fig.add_trace(go.Scatter(
-        x=d['Q_CMH'], y=d['Total_Eff'], mode='lines+markers',
+        x=d['Q_CMH'] * factor, y=d['Total_Eff'], mode='lines+markers',
         name='Total Eff', line=dict(color='#FF6B35', width=2.5, dash='dot'),
         marker=dict(size=7, symbol='diamond')),
         secondary_y=True)
 
     lo = _base_layout(f'📈 Combined Performance — {angle}° Blade Angle',
-                       'Volume Flow Rate (CMH)', '', height=550)
+                       f'Volume Flow Rate ({unit})', '', height=550)
     lo.pop('yaxis', None)
     fig.update_layout(**lo)
     fig.update_yaxes(title_text='Pressure (mm WG)', secondary_y=False, gridcolor=_GRID)
@@ -195,16 +211,17 @@ def create_combined_performance(df, angle):
 # ────────────────────────────────────────────────────────────────
 def create_angle_comparison(df):
     rows = []
+    factor, unit = _flow_conv()
     for angle in sorted(df['ANGLE'].unique()):
         d = df[df['ANGLE'] == angle]
         rows.append({
             'Angle': angle,
-            'Max Volume (CMH)':   d['Q_CMH'].max(),
+            f'Max Volume ({unit})':   d['Q_CMH'].max() * factor,
             'Max FSP (mm WG)':    d['FSP'].max(),
             'Max Static Eff (%)': d['Static_Eff'].max(),
             'Max Total Eff (%)':  d['Total_Eff'].max(),
             'Max BKW (kW)':       d['BKW'].max(),
-            'BEP Volume (CMH)':   d.loc[d['Total_Eff'].idxmax(), 'Q_CMH'],
+            f'BEP Volume ({unit})':   d.loc[d['Total_Eff'].idxmax(), 'Q_CMH'] * factor,
         })
     sdf = pd.DataFrame(rows)
     labels = [f"{a}°" for a in sdf['Angle']]
@@ -212,8 +229,8 @@ def create_angle_comparison(df):
 
     fig = make_subplots(
         rows=2, cols=2,
-        subplot_titles=['Max Volume', 'Max FSP',
-                        'Peak Efficiency', 'BEP Volume'],
+        subplot_titles=[f'Max Volume ({unit})', 'Max FSP',
+                        'Peak Efficiency', f'BEP Volume ({unit})'],
         vertical_spacing=0.18, horizontal_spacing=0.12)
 
     def _bar(vals, r, c):
@@ -222,10 +239,10 @@ def create_angle_comparison(df):
             text=[f'{v:.0f}' for v in vals], textposition='outside'),
             row=r, col=c)
 
-    _bar(sdf['Max Volume (CMH)'].values,   1, 1)
+    _bar(sdf[f'Max Volume ({unit})'].values,   1, 1)
     _bar(sdf['Max FSP (mm WG)'].values,    1, 2)
     _bar(sdf['Max Total Eff (%)'].values,  2, 1)
-    _bar(sdf['BEP Volume (CMH)'].values,   2, 2)
+    _bar(sdf[f'BEP Volume ({unit})'].values,   2, 2)
 
     lo = _base_layout('📊 Angle-wise Performance Comparison', '', '', height=620)
     lo.pop('xaxis', None); lo.pop('yaxis', None)
@@ -243,14 +260,21 @@ def create_angle_comparison(df):
 def create_3d_surface(df, target='FSP', title=None):
     title = title or f'3D Surface — {target}'
     n_angles = df['ANGLE'].nunique()
+    factor, unit = _flow_conv()
     # For very few angles, reduce resolution to avoid NaN-dominated grids
     grid_n = 50 if n_angles >= 3 else 30
     a_rng = np.linspace(df['ANGLE'].min(), df['ANGLE'].max(), grid_n)
-    v_rng = np.linspace(df['Q_CMH'].min(), df['Q_CMH'].max(), grid_n)
+    v_rng = np.linspace(df['Q_CMH'].min() * factor, df['Q_CMH'].max() * factor, grid_n)
     ag, vg = np.meshgrid(a_rng, v_rng)
-    pts = df[['ANGLE', 'Q_CMH']].values
+    scaled_q = df['Q_CMH'] * factor
+    pts = np.column_stack([df['ANGLE'], scaled_q])
     zvals = df[target].values
-    # Try cubic first, fall back to linear then nearest for sparse data
+    z_title = target
+    if target in ('Q_CMH', 'Qt_CMH'):
+        zvals = zvals * factor
+        z_title = f'Volume ({unit})'
+        title = title.replace('Q_CMH', f'Q ({unit})').replace('Qt_CMH', f'Qt ({unit})')
+
     zg = None
     for method in ('cubic', 'linear', 'nearest'):
         zg = griddata(pts, zvals, (ag, vg), method=method)
@@ -264,7 +288,7 @@ def create_3d_surface(df, target='FSP', title=None):
     fig.update_layout(
         title=dict(text=f'🌐 {title}', font=dict(size=18, color=_FONT_CLR)),
         scene=dict(xaxis_title='Blade Angle (°)',
-                   yaxis_title='Volume (CMH)', zaxis_title=target,
+                   yaxis_title=f'Volume ({unit})', zaxis_title=z_title,
                    bgcolor=_CHART_BG,
                    xaxis=dict(gridcolor=_GRID),
                    yaxis=dict(gridcolor=_GRID),
@@ -281,25 +305,34 @@ def create_3d_surface(df, target='FSP', title=None):
 def create_prediction_vs_actual(df, model_info, target='Q_CMH'):
     fig = go.Figure()
     idx = model_info['target_cols'].index(target)
+    factor, unit = _flow_conv()
 
     res = model_info['results']
     actual  = df[target].values
     pred    = res['loo_predictions'][:, idx]
     r2      = res['r2_cv'][target]
+
+    if target in ('Q_CMH', 'Qt_CMH'):
+        actual = actual * factor
+        pred = pred * factor
+        lbl_target = f"{target.replace('_CMH', '')} ({unit})"
+    else:
+        lbl_target = target
+
     fig.add_trace(go.Scatter(
         x=actual, y=pred, mode='markers',
         name=f'GPR (Matérn)  (R²={r2:.3f})',
         marker=dict(size=10, opacity=0.85)))
 
-    mn, mx = df[target].min(), df[target].max()
+    mn, mx = actual.min(), actual.max()
     pad = (mx - mn) * 0.1
     fig.add_trace(go.Scatter(
         x=[mn - pad, mx + pad], y=[mn - pad, mx + pad],
         mode='lines', name='Ideal',
         line=dict(color='rgba(255,255,255,0.25)', dash='dash', width=1)))
     fig.update_layout(**_base_layout(
-        f'🎯 Predicted vs Actual — {target}',
-        f'Actual {target}', f'Predicted {target}'))
+        f'🎯 Predicted vs Actual — {lbl_target}',
+        f'Actual {lbl_target}', f'Predicted {lbl_target}'))
     return fig
 
 
@@ -315,11 +348,12 @@ def create_ml_prediction_curves(pred_df, actual_df=None, angle=None):
                         'Volume vs Total Efficiency'],
         vertical_spacing=0.14, horizontal_spacing=0.12)
 
+    factor, unit = _flow_conv()
     ps = pred_df.sort_values('Q_CMH')
 
     def _add_pred(y_col, r, c, y_mul=1, sl=True):
         fig.add_trace(go.Scatter(
-            x=ps['Q_CMH'], y=ps[y_col] * y_mul,
+            x=ps['Q_CMH'] * factor, y=ps[y_col] * y_mul,
             mode='lines', name=f'Predicted ({angle}°)',
             line=dict(color=_PRED_CLR, width=3),
             legendgroup='pred', showlegend=sl), row=r, col=c)
@@ -337,13 +371,13 @@ def create_ml_prediction_curves(pred_df, actual_df=None, angle=None):
                       line=dict(color=c, width=1.5, dash='dot'),
                       marker=dict(color=c, size=5), opacity=0.55,
                       legendgroup=f'a{a}')
-            fig.add_trace(go.Scatter(x=d['Q_CMH'], y=d['FSP'],
+            fig.add_trace(go.Scatter(x=d['Q_CMH'] * factor, y=d['FSP'],
                           name=f'Actual {a}°', **kw), row=1, col=1)
-            fig.add_trace(go.Scatter(x=d['Q_CMH'], y=d['BKW'],
+            fig.add_trace(go.Scatter(x=d['Q_CMH'] * factor, y=d['BKW'],
                           showlegend=False, **kw), row=1, col=2)
-            fig.add_trace(go.Scatter(x=d['Q_CMH'], y=d['Static_Eff'],
+            fig.add_trace(go.Scatter(x=d['Q_CMH'] * factor, y=d['Static_Eff'],
                           showlegend=False, **kw), row=2, col=1)
-            fig.add_trace(go.Scatter(x=d['Q_CMH'], y=d['Total_Eff'],
+            fig.add_trace(go.Scatter(x=d['Q_CMH'] * factor, y=d['Total_Eff'],
                           showlegend=False, **kw), row=2, col=2)
 
     lo = _base_layout(f'🤖 ML Predicted Performance — {angle}° Blade Angle',
@@ -351,8 +385,8 @@ def create_ml_prediction_curves(pred_df, actual_df=None, angle=None):
     lo.pop('xaxis', None); lo.pop('yaxis', None)
     fig.update_layout(**lo)
     for c in (1, 2):
-        fig.update_xaxes(title_text='Volume (CMH)', gridcolor=_GRID, row=1, col=c)
-        fig.update_xaxes(title_text='Volume (CMH)', gridcolor=_GRID, row=2, col=c)
+        fig.update_xaxes(title_text=f'Volume ({unit})', gridcolor=_GRID, row=1, col=c)
+        fig.update_xaxes(title_text=f'Volume ({unit})', gridcolor=_GRID, row=2, col=c)
     fig.update_yaxes(title_text='FSP (mm WG)',   gridcolor=_GRID, row=1, col=1)
     fig.update_yaxes(title_text='Power (kW)',     gridcolor=_GRID, row=1, col=2)
     fig.update_yaxes(title_text='Static Eff (%)', gridcolor=_GRID, row=2, col=1)
@@ -366,18 +400,19 @@ def create_ml_prediction_curves(pred_df, actual_df=None, angle=None):
 def create_system_resistance_overlay(df, angle, k_sys):
     d = df[df['ANGLE'] == angle].sort_values('Q_CMH')
     c = get_angle_color(angle)
+    factor, unit = _flow_conv()
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=d['Q_CMH'], y=d['FSP'], mode='lines+markers',
+        x=d['Q_CMH'] * factor, y=d['FSP'], mode='lines+markers',
         name=f'Fan Curve ({angle}°)',
         line=dict(color=c, width=3), marker=dict(size=8)))
 
     q_rng  = np.linspace(0, d['Q_CMH'].max() * 1.2, 200)
     sp_sys = k_sys * q_rng**2
     fig.add_trace(go.Scatter(
-        x=q_rng, y=sp_sys, mode='lines',
-        name=f'System (k={k_sys:.2e})',
+        x=q_rng * factor, y=sp_sys, mode='lines',
+        name=f'System (k={k_sys / (factor**2):.2e} in {unit})',
         line=dict(color=_PRED_CLR, width=2.5, dash='dash')))
 
     # operating-point intersection
@@ -389,8 +424,8 @@ def create_system_resistance_overlay(df, angle, k_sys):
             diff = np.abs(f_fan(qf) - k_sys * qf**2)
             oi = np.argmin(diff)
             fig.add_trace(go.Scatter(
-                x=[qf[oi]], y=[f_fan(qf[oi])], mode='markers',
-                name=f'OP  ({qf[oi]:.0f} CMH, {f_fan(qf[oi]):.1f} mm WG)',
+                x=[qf[oi] * factor], y=[f_fan(qf[oi])], mode='markers',
+                name=f'OP  ({qf[oi] * factor:.0f} {unit}, {f_fan(qf[oi]):.1f} mm WG)',
                 marker=dict(color='#FFF', size=14, symbol='star',
                             line=dict(color='#FFD700', width=2))))
         except Exception:
@@ -398,5 +433,5 @@ def create_system_resistance_overlay(df, angle, k_sys):
 
     fig.update_layout(**_base_layout(
         f'🔄 System Resistance Overlay — {angle}°',
-        'Volume Flow Rate (CMH)', 'Pressure (mm WG)'))
+        f'Volume Flow Rate ({unit})', 'Pressure (mm WG)'))
     return fig

@@ -50,6 +50,23 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+# ── Unit Conversion Helpers ────────────────────────────────────
+CMH_TO_CFM = 0.588577779
+CFM_TO_CMH = 1.69901082
+
+def convert_flow_out(cmh):
+    if st.session_state.get('flow_unit', 'CMH') == 'CFM':
+        return cmh * CMH_TO_CFM
+    return cmh
+
+def convert_flow_in(user_input):
+    if st.session_state.get('flow_unit', 'CMH') == 'CFM':
+        return user_input * CFM_TO_CMH
+    return user_input
+
+def flow_unit_label():
+    return st.session_state.get('flow_unit', 'CMH')
+
 # lazy imports of project modules (avoids circular issues at top-level)
 
 
@@ -106,6 +123,8 @@ def render_sidebar_mode_selector() -> str:
     Returns the selected mode string.
     """
     st.markdown("## 🌀 Axial Fan Tool")
+    st.markdown("---")
+    st.radio("**Flow Volume Unit**", ["CMH", "CFM"], index=0, horizontal=True, key="flow_unit")
     st.markdown("---")
     mode = st.radio("**Mode**", MODES, key="app_mode")
     st.markdown("---")
@@ -582,7 +601,12 @@ def _page_cross_fan_selection() -> None:
     # ── Requirements ─────────────────────────────────────────────────────────
     st.markdown("### 📋 System Requirements")
     rc1, rc2, rc3 = st.columns([1, 1, 1])
-    req_cmh = rc1.number_input("Required Volume (CMH)", 100, 500_000, 10000, 100, key="cfs_cmh")
+    unit = flow_unit_label()
+    if unit == 'CFM':
+        req_val = rc1.number_input("Required Volume (CFM)", int(100 * CMH_TO_CFM), int(500000 * CMH_TO_CFM), int(10000 * CMH_TO_CFM), int(100 * CMH_TO_CFM), key="cfs_cfm")
+        req_cmh = req_val * CFM_TO_CMH
+    else:
+        req_cmh = rc1.number_input("Required Volume (CMH)", 100, 500000, 10000, 100, key="cfs_cmh")
     req_sp  = rc2.number_input("Required SP (mm WG)",   0.0, 200.0,   10.0, 0.5,  key="cfs_sp")
     run_btn = rc3.button("🔍 Find Best Fan", type="primary",
                           use_container_width=True, key="cfs_run")
@@ -629,7 +653,8 @@ def _page_cross_fan_selection() -> None:
 
     # ── ML Operating Point Table — all sensible models ───────────────────────
     st.markdown("---")
-    st.markdown(f"### 📈 Performance at Your Operating Point — {req_cmh:.0f} CMH / {req_sp:.1f} mm WG")
+    disp_flow = convert_flow_out(req_cmh)
+    st.markdown(f"### 📈 Performance at Your Operating Point — {disp_flow:.0f} {unit} / {req_sp:.1f} mm WG")
 
     from model_store import predict_for_fan as _pfan
     from scipy.interpolate import interp1d as _i1d
@@ -678,8 +703,8 @@ def _page_cross_fan_selection() -> None:
             "Fan":          _rec["fan_name"],
             "Motor":        _rec["motor_label"],
             "Angle (°)":    _rec["angle"],
-            "Volume (CMH)": round(_sc["Q_CMH"]),
-            "\u0394 CMH":        f"{_sc['Q_CMH'] - req_cmh:+.0f}",
+            f"Volume ({unit})": round(convert_flow_out(_sc["Q_CMH"])),
+            f"\u0394 {unit}":   f"{convert_flow_out(_sc['Q_CMH']) - convert_flow_out(req_cmh):+.0f}",
             "FSP (mm WG)":  round(_sc["FSP"], 2),
             "\u0394 SP":         f"{_sc['FSP'] - req_sp:+.2f}",
             "BKW (kW)":    round(_sc["BKW"], 3),
