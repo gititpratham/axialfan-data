@@ -198,18 +198,23 @@ def compute_derived_quantities(
     # 5  Volume flow at test conditions  (m³/hr)
     df['Qt_CMH'] = 12500 * CD * D**2 * np.sqrt(df['DEL_P'] / df['WT'])
 
-    # 6  Outlet velocity  (m/s  &  m/hr)
+    # 6  Outlet velocity  (m/s & m/hr)
     df['V_out_mps'] = df['Qt_CMH'] / (A * 3600)
     df['V_out_mhr'] = df['Qt_CMH'] / A
 
-    # 7  Inlet velocity  (m/hr)
+    # 7  Inlet velocity  (m/s  & m/hr)
+    #    Ai = A for a tube-axial fan (same duct area inlet & outlet)
     df['V_in_mhr'] = df['Qt_CMH'] / Ai
+    df['V_in_mps'] = df['Qt_CMH'] / (Ai * 3600)  # exact, used for VP
 
     # 8  Velocity pressure – outlet  (mm WG)
+    #    VP (Pa) = WT × V² / 2;  1 mm WG = 9.81 Pa  →  VP (mm WG) = WT × V² / (2g)
     df['VPot'] = (df['V_out_mps']**2 / (2 * g)) * df['WT']
 
     # 9  Velocity pressure – inlet  (mm WG)
-    df['VPi'] = (df['V_in_mhr'] / 16000)**2 * df['WT']
+    #    Use the SAME exact formula as VPot (consistent units, same area).
+    #    Avoids the ~0.34 % error from the rounded constant 16 000 ≈ √(2g)×3600 = 15 946.
+    df['VPi'] = (df['V_in_mps']**2 / (2 * g)) * df['WT']
 
     # 10  Total pressure – outlet  (mm WG)
     df['TPot'] = df['SP'] + df['VPot']
@@ -227,11 +232,13 @@ def compute_derived_quantities(
     # 14  Rated volume  (m³/hr)  — fan-law speed correction
     df['Q_CMH'] = df['Qt_CMH'] * (N / df['RPM'])
 
-    # 15  Rated outlet velocity  (m/hr)
+    # 15  Rated outlet velocity  (m/hr  &  m/s)
     df['Rated_V_out_mhr'] = df['Q_CMH'] / A
+    df['Rated_V_out_mps'] = df['Q_CMH'] / (A * 3600)  # exact, used for VP
 
     # 16  Rated velocity pressure – outlet  (mm WG)
-    df['R_VPo'] = (df['Rated_V_out_mhr'] / 16000)**2 * WTd
+    #    Same exact formula as VPot / VPi — no 16 000 approximation.
+    df['R_VPo'] = (df['Rated_V_out_mps']**2 / (2 * g)) * WTd
 
     # 17  Fan total pressure – rated  (mm WG)
     df['FTP'] = df['FTPT'] * (N / df['RPM'])**2 * (WTd / df['WT'])
@@ -243,10 +250,15 @@ def compute_derived_quantities(
     df['BKW'] = df['Mo_kW'] * (N / df['RPM'])**3 * (WTd / df['WT'])
 
     # 20  Air power – static  (kW)
-    df['Air_Power_ST'] = 2.723 * df['Q_CMH'] * df['FSP'] * 1e-6
+    #    Exact constant: 9.81 Pa/mm WG ÷ (1000 W/kW × 3600 s/hr) = 2.725 × 10⁻⁶
+    #    FSP is clamped to 0 for static air power: when the fan operates near free
+    #    delivery, FSP = FTP − R_VPo can be slightly negative (physical — all energy
+    #    goes into kinetic pressure).  Negative static efficiency is meaningless.
+    df['FSP_eff'] = df['FSP'].clip(lower=0)   # floor for efficiency calc only
+    df['Air_Power_ST'] = 2.725 * df['Q_CMH'] * df['FSP_eff'] * 1e-6
 
     # 21  Air power – total  (kW)
-    df['Air_Power_T'] = 2.723 * df['Q_CMH'] * df['FTP'] * 1e-6
+    df['Air_Power_T'] = 2.725 * df['Q_CMH'] * df['FTP'] * 1e-6
 
     # 22  Static efficiency  (%)
     df['Static_Eff'] = np.where(

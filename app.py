@@ -301,25 +301,25 @@ with tab1:
     with st.expander('📖 Calculation Reference'):
         st.markdown("""
 | # | Quantity | Formula |
-|---|---------|---------|
-| 1 | WT | `1.205 × (B + 0.0737×SP) / 760 × 293 / (273+Ts)` |
+|---|---------|---------|| 1 | WT | `1.205 × (B + 0.0737×SP) / 760 × 293 / (273+Ts)` |
 | 2 | WTd | `1.205 × B_d / 760 × 293 / (273+T_d)` |
 | 3 | Mi (kW) | `(W1+W2) × CW / 1000` |
 | 4 | PF | `Mi×1000 / (√3 × V × I)` |
 | 5 | Qt (CMH) | `12500 × CD × D² × √(DP/WT)` |
 | 6 | V_out (m/s) | `Qt / (A × 3600)` |
-| 7 | VPot | `(V²/2g) × WT` |
-| 8 | VPi | `(V_in_mhr / 16000)² × WT` |
+| 7 | VPot | `(V_out_mps² / 2g) × WT` |
+| 8 | VPi | `(V_in_mps² / 2g) × WT`  *(exact — same as VPot; inlet = outlet area)* |
 | 9 | TPot | `SP + VPot` |
-| 10 | TPi | `VPi` (free inlet) |
-| 11 | FTPT | `TPot − TPi` |
+| 10 | TPi | `VPi` (free inlet, SPi = 0) |
+| 11 | FTPT | `TPot − TPi = SP`  *(VPot = VPi for same-area fan)* |
 | 12 | Mo | `Mi × Motor_Eff` |
 | 13 | Q (rated CMH) | `Qt × (N/Nt)` |
-| 14 | FTP | `FTPT × (N/Nt)² × (WTd/WT)` |
-| 15 | FSP | `FTP − R.VPo` |
-| 16 | BKW | `Mo × (N/Nt)³ × (WTd/WT)` |
-| 17 | η_static | `2.723 × Q × FSP × 10⁻⁶ / BKW × 100` |
-| 18 | η_total | `2.723 × Q × FTP × 10⁻⁶ / BKW × 100` |
+| 14 | R_VPo | `(V_rated_mps² / 2g) × WTd`  *(exact rated outlet VP)* |
+| 15 | FTP | `FTPT × (N/Nt)² × (WTd/WT)` |
+| 16 | FSP | `FTP − R_VPo`  *(may be ≤ 0 at free-delivery points — physically correct)* |
+| 17 | BKW | `Mo × (N/Nt)³ × (WTd/WT)` |
+| 18 | η_static | `2.725 × Q × max(FSP, 0) × 10⁻⁶ / BKW × 100`  *(FSP floored at 0)* |
+| 19 | η_total | `2.725 × Q × FTP × 10⁻⁶ / BKW × 100` |
 """)
 
 
