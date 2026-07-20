@@ -527,6 +527,38 @@ def _page_cross_fan_selection() -> None:
     )
 
 
+    # ── All Combinations Ranked table ─────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("### 📋 All Combinations Ranked")
+
+    _tbl_ranked = []
+    for _i, _rec in enumerate(recommendations):
+        _sc = _rec["scaled"]
+        _di = "✅" if _rec["deviation"] < 0.3 else ("⚠️" if _rec["deviation"] < 0.6 else "❌")
+        _tbl_ranked.append({
+            "Rank":         _i + 1,
+            "Fan":          _rec["fan_name"],
+            "Motor":        _rec["motor_label"],
+            "Angle (°)":    _rec["angle"],
+            f"Volume ({unit})": round(convert_flow_out(_sc["Q_CMH"])),
+            f"\u0394 {unit}":   f"{convert_flow_out(_sc['Q_CMH']) - convert_flow_out(req_cmh):+.0f}",
+            "FSP (mm WG)":  round(_sc["FSP"], 2),
+            "\u0394 SP":         f"{_sc['FSP'] - req_sp:+.2f}",
+            "BKW (kW)":    round(_sc["BKW"], 3),
+            "\u03b7 Static (%)": round(_sc["Static_Eff"], 1),
+            "\u03b7 Total (%)":  round(_sc["Total_Eff"], 1),
+            "Deviation":    f"{_di} {_rec['deviation']:.1%}",
+        })
+    _tbl_ranked_df = pd.DataFrame(_tbl_ranked)
+    st.dataframe(_tbl_ranked_df, use_container_width=True, hide_index=True)
+    st.download_button(
+        "\U0001f4e5 Download Results CSV",
+        _tbl_ranked_df.to_csv(index=False),
+        "cross_fan_selection.csv",
+        "text/csv",
+        key="cfs_download_ranked",
+    )
+
     # ── ML Operating Point Table — all sensible models ───────────────────────
     st.markdown("---")
     disp_flow = convert_flow_out(req_cmh)
@@ -564,40 +596,7 @@ def _page_cross_fan_selection() -> None:
     if op_rows:
         st.dataframe(pd.DataFrame(op_rows), use_container_width=True, hide_index=True)
     else:
-        st.info("Could not compute ML estimates.")
-
-    # ── All Combinations Ranked table ─────────────────────────────────────────
-    st.markdown("---")
-    st.markdown("### 📋 All Combinations Ranked")
-
-    _tbl_ranked = []
-    for _i, _rec in enumerate(recommendations):
-        _sc = _rec["scaled"]
-        _di = "✅" if _rec["deviation"] < 0.3 else ("⚠️" if _rec["deviation"] < 0.6 else "❌")
-        _tbl_ranked.append({
-            "Rank":         _i + 1,
-            "Fan":          _rec["fan_name"],
-            "Motor":        _rec["motor_label"],
-            "Angle (°)":    _rec["angle"],
-            f"Volume ({unit})": round(convert_flow_out(_sc["Q_CMH"])),
-            f"\u0394 {unit}":   f"{convert_flow_out(_sc['Q_CMH']) - convert_flow_out(req_cmh):+.0f}",
-            "FSP (mm WG)":  round(_sc["FSP"], 2),
-            "\u0394 SP":         f"{_sc['FSP'] - req_sp:+.2f}",
-            "BKW (kW)":    round(_sc["BKW"], 3),
-            "\u03b7 Static (%)": round(_sc["Static_Eff"], 1),
-            "\u03b7 Total (%)":  round(_sc["Total_Eff"], 1),
-            "Deviation":    f"{_di} {_rec['deviation']:.1%}",
-            "Model":        _rec["model_name"],
-        })
-    _tbl_ranked_df = pd.DataFrame(_tbl_ranked)
-    st.dataframe(_tbl_ranked_df, use_container_width=True, hide_index=True)
-    st.download_button(
-        "\U0001f4e5 Download Results CSV",
-        _tbl_ranked_df.to_csv(index=False),
-        "cross_fan_selection.csv",
-        "text/csv",
-        key="cfs_download_ranked",
-    )
+        st.info("Could not compute estimates.")
 
     # ── Full predicted curves — top reasonable models only ────────────────────
     from plots import create_ml_prediction_curves
