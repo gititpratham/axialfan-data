@@ -475,7 +475,7 @@ def _page_cross_fan_selection() -> None:
 
     # ── Requirements ─────────────────────────────────────────────────────────
     st.markdown("### 📋 System Requirements")
-    rc1, rc2, rc3 = st.columns([1, 1, 1])
+    rc1, rc2, rc3, rc4 = st.columns([1, 1, 1, 1])
     unit = flow_unit_label()
     if unit == 'CFM':
         req_val = rc1.number_input("Required Volume (CFM)", int(100 * CMH_TO_CFM), int(500000 * CMH_TO_CFM), int(10000 * CMH_TO_CFM), int(100 * CMH_TO_CFM), key="cfs_cfm")
@@ -483,7 +483,8 @@ def _page_cross_fan_selection() -> None:
     else:
         req_cmh = rc1.number_input("Required Volume (CMH)", 100, 500000, 10000, 100, key="cfs_cmh")
     req_sp  = rc2.number_input("Required SP (mm WG)",   0.0, 200.0,   10.0, 0.5,  key="cfs_sp")
-    run_btn = rc3.button("🔍 Find Best Fan", type="primary",
+    allowed_poles = rc3.multiselect("Motor Poles", [2, 4, 6], default=[2, 4, 6], key="cfs_poles")
+    run_btn = rc4.button("🔍 Find Best Fan", type="primary",
                           use_container_width=True, key="cfs_run")
 
     if not run_btn:
@@ -498,7 +499,7 @@ def _page_cross_fan_selection() -> None:
             st.error("Could not load computed data for the selected fans.")
             return
 
-        recommendations = cross_fan_recommend(chosen_ids, computed_map, req_cmh, req_sp)
+        recommendations = cross_fan_recommend(chosen_ids, computed_map, req_cmh, req_sp, allowed_poles)
 
     if not recommendations:
         st.error("No recommendations could be generated. Check that models are trained.")
