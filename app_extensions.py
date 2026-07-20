@@ -483,7 +483,7 @@ def _page_cross_fan_selection() -> None:
     else:
         req_cmh = rc1.number_input("Required Volume (CMH)", 100, 500000, 10000, 100, key="cfs_cmh")
     req_sp  = rc2.number_input("Required SP (mm WG)",   0.0, 200.0,   10.0, 0.5,  key="cfs_sp")
-    allowed_poles = rc3.multiselect("Motor Poles", [2, 4, 6], default=[2, 4, 6], key="cfs_poles")
+    allowed_poles = rc3.multiselect("Motor Poles", [2, 4, 6], default=[6], key="cfs_poles")
     run_btn = rc4.button("🔍 Find Best Fan", type="primary",
                           use_container_width=True, key="cfs_run")
 

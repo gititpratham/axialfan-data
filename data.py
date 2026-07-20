@@ -263,14 +263,14 @@ def compute_derived_quantities(
     # 22  Static efficiency  (%)
     df['Static_Eff'] = np.where(
         df['BKW'] > 0,
-        np.minimum(df['Air_Power_ST'] / df['BKW'] * 100, 89.9),
+        (df['Air_Power_ST'] / df['BKW']) * 100,
         0,
     )
 
     # 23  Total efficiency  (%)
     df['Total_Eff'] = np.where(
         df['BKW'] > 0,
-        np.minimum(df['Air_Power_T'] / df['BKW'] * 100, 89.9),
+        (df['Air_Power_T'] / df['BKW']) * 100,
         0,
     )
 
