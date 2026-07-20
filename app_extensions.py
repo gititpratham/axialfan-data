@@ -28,13 +28,8 @@ Only three edits to the existing app.py are needed:
   (C) Swap the existing model-training call:
 
         # OLD:  mi = _train(selected_fan, ct, df_json)
-        # NEW:
-        from model_store import get_or_train_model
-        mi = get_or_train_model(
-            fan_id=_fan_id_from_name(selected_fan),
-            df_computed=df,
-            force_retrain=False,
-        )
+        # NEW: (No training needed for physics model!)
+        # Just use df directly.
 
   That's it.  No other changes to app.py.
 
@@ -112,7 +107,6 @@ def _inject_css():
 MODES = [
     "⚙️  Fan Analysis",
     "🗄️  Database Manager",
-    "💾  Model Store",
     "🌐  Cross-Fan Selection",
 ]
 
@@ -139,8 +133,6 @@ def render_extension_page(mode: str) -> None:
     _inject_css()
     if mode == "🗄️  Database Manager":
         _page_db_manager()
-    elif mode == "💾  Model Store":
-        _page_model_store()
     elif mode == "🌐  Cross-Fan Selection":
         _page_cross_fan_selection()
 
@@ -187,13 +179,12 @@ def _page_db_manager() -> None:
         list_fans, get_raw_df, save_raw_df, save_constants,
         get_fan_constants, create_fan, delete_fan, RAW_COLS,
     )
-    from model_store import is_model_stale, delete_model
 
     st.markdown("""
     <div class="ext-header">
       <h2>🗄️ Fan Database Manager</h2>
       <p>Add, edit, and manage the cumulative fan test database. Changes automatically
-         mark the ML model as stale until you retrain.</p>
+         update instantly.</p>
     </div>""", unsafe_allow_html=True)
 
     # ── top-level action selector ─────────────────────────────────────────────
@@ -330,7 +321,7 @@ def _page_db_manager() -> None:
                 "cw":               cc1.number_input("Wattmeter CW",     value=10.0,   format="%.1f"),
                 "test_temp_c":      cc2.number_input("Test Temp (°C)",   value=30.0,   step=1.0),
                 "test_baro_mmhg":   cc2.number_input("Test Baro (mmHg)", value=760.0,  step=1.0),
-                "design_temp_c":    cc2.number_input("Design Temp (°C)", value=30.0,   step=1.0),
+                "design_temp_c":    cc3.number_input("Design Temp (°C)", value=30.0,   step=1.0),
                 "design_baro_mmhg": cc3.number_input("Design Baro",      value=760.0,  step=1.0),
                 "design_speed_rpm": cc3.number_input("Design RPM",       value=1460.0, step=1.0),
                 "motor_efficiency": cc3.number_input("Motor Eff",        value=0.81,   format="%.2f"),
@@ -385,8 +376,6 @@ def _page_db_manager() -> None:
 
         if st.button("🗑️ Delete permanently", type="primary", key="do_delete"):
             if confirm.strip() == del_name:
-                from model_store import delete_model
-                delete_model(del_id)
                 delete_fan(del_id)
                 st.success(f"Fan '{del_name}' deleted.")
                 st.rerun()
@@ -395,106 +384,6 @@ def _page_db_manager() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PAGE 2 — Model Store
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _page_model_store() -> None:
-    from fan_db import list_fans, get_raw_df, get_fan_constants
-    from data import compute_derived_quantities
-    from model_store import (
-        list_stored_models, get_or_train_model,
-        is_model_stale, delete_model,
-    )
-
-    st.markdown("""
-    <div class="ext-header">
-      <h2>💾 ML Model Store</h2>
-      <p>Inspect saved models, trigger retraining, and manage per-fan model files.
-         Models are only retrained when data or constants have changed.</p>
-    </div>""", unsafe_allow_html=True)
-
-    fans = list_fans()
-    if not fans:
-        st.info("No fans in the database.")
-        return
-
-    stored = {m["fan_id"]: m for m in list_stored_models()}
-    fan_id_map = {f["fan_id"]: f for f in fans}
-
-    # ── Status overview table ─────────────────────────────────────────────────
-    st.markdown("### 📊 Model Status Overview")
-
-    rows = []
-    for fan in fans:
-        fid = fan["fan_id"]
-        meta = stored.get(fid)
-        stale = is_model_stale(fid)
-        rows.append({
-            "Fan": fan["display_name"],
-            "Model": meta.get("best_model_name", "GPR (Matérn)") if meta else "—",
-            "Avg CV R²": f"{meta['avg_r2_cv']:.4f}" if meta else "—",
-            "Saved At": meta.get("saved_at", "—") if meta else "—",
-            "Status": "⚠️ Stale" if stale else ("✅ Fresh" if meta else "❌ None"),
-        })
-
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-    st.markdown("---")
-
-    # ── Per-fan train / inspect ───────────────────────────────────────────────
-    st.markdown("### 🔧 Per-Fan Model Actions")
-
-    selected_display = st.selectbox(
-        "Select fan", [f["display_name"] for f in fans], key="ms_fan"
-    )
-    fan = next(f for f in fans if f["display_name"] == selected_display)
-    fan_id = fan["fan_id"]
-    meta = stored.get(fan_id)
-    stale = is_model_stale(fan_id)
-
-    status_cls = "model-badge-stale" if stale else ("model-badge-fresh" if meta else "model-badge-absent")
-    status_txt = "⚠️ Stale" if stale else ("✅ Fresh" if meta else "❌ No model saved")
-    st.markdown(
-        f'<div class="info-badge">Status: <span class="{status_cls}">{status_txt}</span></div>',
-        unsafe_allow_html=True,
-    )
-
-    # Action buttons
-    col_train, col_delete, _ = st.columns([1, 1, 3])
-
-    do_train = col_train.button(
-        "🔄 Train & Save" if stale or not meta else "♻️ Force Retrain",
-        type="primary", use_container_width=True, key=f"train_{fan_id}",
-    )
-    do_delete = col_delete.button(
-        "🗑️ Delete Model", use_container_width=True,
-        key=f"del_model_{fan_id}", disabled=meta is None,
-    )
-
-    if do_train:
-        with st.spinner(f"Training models for {selected_display} …"):
-            try:
-                raw = get_raw_df(fan_id)
-                constants = get_fan_constants(fan_id)
-                computed = compute_derived_quantities(df=raw, constants=constants)
-                mi = get_or_train_model(fan_id, computed, force_retrain=True)
-                st.success(
-                    f"✅ Best model: **{mi['best_model_name']}** — "
-                    f"Avg CV R² = {mi['results'][mi['best_model_name']]['avg_r2_cv']:.4f}"
-                )
-                st.rerun()
-            except Exception as e:
-                st.error(f"Training failed: {e}")
-
-    if do_delete:
-        delete_model(fan_id)
-        st.warning(f"Model for '{selected_display}' deleted.")
-        st.rerun()
-
-    # ── Detailed metrics for stored model ────────────────────────────────────
-    if meta:
-        with st.expander("📋 Stored Model Metadata"):
-            st.json(meta)
 
         with st.expander("📈 Live Model Metrics (load + score)"):
             try:
@@ -554,14 +443,14 @@ def _page_model_store() -> None:
 
 def _page_cross_fan_selection() -> None:
     from fan_db import list_fans
-    from model_store import cross_fan_recommend, is_model_stale, list_stored_models
+    from physics_model import cross_fan_recommend
 
     st.markdown("""
     <div class="ext-header">
       <h2>🌐 Cross-Fan Selection</h2>
-      <p>Enter your system requirements. Every fan with a saved model is evaluated
+      <p>Enter your system requirements. Every fan in the database is evaluated
          across all standard motor speeds. The best fan–motor–angle combination
-         is recommended.</p>
+         is recommended using exact physics interpolation.</p>
     </div>""", unsafe_allow_html=True)
 
     fans = list_fans()
@@ -569,21 +458,7 @@ def _page_cross_fan_selection() -> None:
         st.info("No fans in the database.")
         return
 
-    stored_ids = {m["fan_id"] for m in list_stored_models()}
-    eligible = [f for f in fans if f["fan_id"] in stored_ids]
-    stale_fans = [f for f in fans if is_model_stale(f["fan_id"])]
-
-    if stale_fans:
-        st.markdown(
-            '<div class="info-badge">⚠️ Some fans have stale or missing models: '
-            + ", ".join(f["display_name"] for f in stale_fans)
-            + ". Go to <strong>Model Store</strong> to retrain them first.</div>",
-            unsafe_allow_html=True,
-        )
-
-    if not eligible:
-        st.warning("No fans have trained models. Please go to Model Store and train first.")
-        return
+    eligible = fans
 
     # ── Fan multi-select ──────────────────────────────────────────────────────
     st.markdown("### 🌀 Fans to Include")
@@ -656,7 +531,7 @@ def _page_cross_fan_selection() -> None:
     disp_flow = convert_flow_out(req_cmh)
     st.markdown(f"### 📈 Performance at Your Operating Point — {disp_flow:.0f} {unit} / {req_sp:.1f} mm WG")
 
-    from model_store import predict_for_fan as _pfan
+    from physics_model import predict_performance as _pfan
     from scipy.interpolate import interp1d as _i1d
 
     def _ml_at(pred_df, cmh, col):
@@ -671,7 +546,7 @@ def _page_cross_fan_selection() -> None:
         fid     = rec["fan_id"]
         computed = computed_map.get(fid)
         try:
-            pf = _pfan(fid, computed, rec["angle"])
+            pf = _pfan(computed, rec["angle"])
             op_rows.append({
                 "Fan":           rec["fan_name"],
                 "Motor":         rec["motor_label"],
@@ -712,7 +587,6 @@ def _page_cross_fan_selection() -> None:
             "\u03b7 Total (%)":  round(_sc["Total_Eff"], 1),
             "Deviation":    f"{_di} {_rec['deviation']:.1%}",
             "Model":        _rec["model_name"],
-            "CV R\u00b2":        f"{_rec['avg_r2_cv']:.4f}",
         })
     _tbl_ranked_df = pd.DataFrame(_tbl_ranked)
     st.dataframe(_tbl_ranked_df, use_container_width=True, hide_index=True)
@@ -726,7 +600,7 @@ def _page_cross_fan_selection() -> None:
 
     # ── Full predicted curves — top reasonable models only ────────────────────
     from plots import create_ml_prediction_curves
-    from model_store import predict_for_fan
+    from physics_model import predict_performance
 
     top_recs = [r for r in recommendations if r["deviation"] < 0.6]
     if top_recs:
@@ -739,7 +613,7 @@ def _page_cross_fan_selection() -> None:
             label    = f"{_pfx}{rec['fan_name']} \u2014 {rec['motor_label']} \u2014 {rec['angle']}\u00b0"
             with st.expander(label, expanded=rec["recommended"]):
                 try:
-                    pred_df = predict_for_fan(fid, computed, rec["angle"])
+                    pred_df = predict_performance(computed, rec["angle"])
                     fig     = create_ml_prediction_curves(pred_df, computed, rec["angle"])
                     st.plotly_chart(fig, use_container_width=True,
                                     key=f"cfs_curve_{fid}_{rec['angle']}_{rec['motor_label']}")

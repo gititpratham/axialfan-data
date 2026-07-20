@@ -16,7 +16,7 @@ from data import (
     get_raw_data, compute_derived_quantities,
     DEFAULT_CONSTANTS, DEFAULT_CONSTANTS_24, FAN_REGISTRY,
 )
-from ml_model import (
+from physics_model import (
     predict_performance,
     find_best_operating_point, find_motor_recommendation,
     TARGET_COLS, STANDARD_MOTORS,
@@ -32,7 +32,6 @@ from plots import (
 # ── Extension layer ────────────────────────────────────────────
 from app_extensions import render_sidebar_mode_selector, render_extension_page
 from fan_db import init_db, list_fans as db_list_fans, get_raw_df, get_fan_constants
-from model_store import get_or_train_model, is_model_stale
 
 # ── Unit Conversion Helpers ────────────────────────────────────
 CMH_TO_CFM = 0.588577779
@@ -202,23 +201,10 @@ def _compute(fan, ct, df_json):
     raw = pd.read_json(io.StringIO(df_json))
     return compute_derived_quantities(df=raw, fan=fan, constants=dict(ct))
 
-# _train replaced by model_store — only retrains when data changed
+# Compute logic (determinisic physics, no ML training required)
 ct = tuple(sorted(constants.items()))
 df_json = raw_df.to_json()
 df = _compute(selected_fan, ct, df_json)
-
-try:
-    mi = get_or_train_model(
-        fan_id=selected_fan,
-        df_computed=df,
-        force_retrain=False,
-    )
-except Exception as _train_err:
-    st.error(f'❌ ML training failed: {_train_err}')
-    if st.button('🔄 Clear Cache & Retry'):
-        st.cache_data.clear()
-        st.rerun()
-    st.stop()
 
 # ────────────────────────────────────────────────────────────────
 # HEADER
@@ -244,7 +230,7 @@ c5.metric('🎯 Peak η',       f'{df["Total_Eff"].max():.1f}%',    'Total')
 tab1, tab2, tab3, tab4 = st.tabs([
     '📋 Data & Calculations',
     '📈 Performance Curves',
-    '🤖 ML Predictions',
+    '🔮 Custom Interpolation',
     '🎯 Fan Selection',
 ])
 
@@ -372,38 +358,9 @@ with tab2:
 
 # ── TAB 3 ──────────────────────────────────────────────────────
 with tab3:
-    st.markdown('### 🤖 Machine Learning Model Performance')
-
-    res = mi['results']
-    st.markdown(f"""
-<div class="metric-card" style="border-color:rgba(0,255,133,.4)">
-  <h3>Gaussian Process (Matérn)</h3>
-  <div class="value">{res['avg_r2_cv']:.3f}</div>
-  <div class="unit">Avg LOOCV R²</div>
-</div>""", unsafe_allow_html=True)
-
-    st.markdown('')
-
-    with st.expander('📊 Detailed Model Metrics (LOOCV)'):
-        mdf = pd.DataFrame({
-            'Target':     TARGET_COLS,
-            'Train R²':   [res['r2_train'][t] for t in TARGET_COLS],
-            'CV R²':      [res['r2_cv'][t]    for t in TARGET_COLS],
-            'Train RMSE': [res['rmse_train'][t] for t in TARGET_COLS],
-            'CV RMSE':    [res['rmse_cv'][t]    for t in TARGET_COLS],
-        })
-        st.dataframe(mdf.round(4), use_container_width=True, hide_index=True)
-        st.markdown('')
-
+    st.markdown('### 🔮 Interpolate at Custom Blade Angle')
+    st.markdown('<div class="info-badge">Uses deterministic polynomial regression mapped between the nearest tested angles.</div>', unsafe_allow_html=True)
     st.markdown('---')
-    st.markdown('### 🎯 Predicted vs Actual (LOOCV)')
-    pva_t = st.selectbox('Target variable', TARGET_COLS,
-                          index=TARGET_COLS.index('FSP'), key='pva')
-    st.plotly_chart(create_prediction_vs_actual(df, mi, pva_t),
-                    use_container_width=True)
-
-    st.markdown('---')
-    st.markdown('### 🔮 Predict at Custom Blade Angle')
 
     pc1, pc2 = st.columns([1, 3])
     with pc1:
@@ -418,7 +375,7 @@ with tab3:
         show_act = st.checkbox('Show actual data', value=True)
 
     with pc2:
-        prd = predict_performance(mi, c_angle)
+        prd = predict_performance(df, c_angle)
         st.plotly_chart(
             create_ml_prediction_curves(prd, df if show_act else None, c_angle),
             use_container_width=True)
@@ -455,8 +412,8 @@ with tab4:
         design_rpm = constants['design_speed_rpm']
 
         with st.spinner('🔄 Evaluating all motor options via fan laws …'):
-            ba, bp, md = find_best_operating_point(mi, req_cmh, req_sp)
-            motor_recs = find_motor_recommendation(mi, req_cmh, req_sp, design_rpm)
+            ba, bp, md = find_best_operating_point(df, req_cmh, req_sp)
+            motor_recs = find_motor_recommendation(df, req_cmh, req_sp, design_rpm)
 
         st.markdown('---')
         if md < 0.3:
@@ -538,7 +495,7 @@ with tab4:
                 ic[2].metric('BKW',             f"{sc['BKW']:.3f} kW")
                 ic[3].metric('η Total', f"{sc['Total_Eff']:.1f}%")
                 st.plotly_chart(
-                    create_ml_prediction_curves(predict_performance(mi, rec['angle']), df, rec['angle']),
+                    create_ml_prediction_curves(predict_performance(df, rec['angle']), df, rec['angle']),
                     use_container_width=True,
                     key=f"motor_curve_{m['rpm']}_{rec['angle']}")
 
