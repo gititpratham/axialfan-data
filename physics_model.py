@@ -83,13 +83,13 @@ def predict_performance(
     air_power_t = 2.725 * q_cmh_range * ftp_pred * 1e-6
     
     # BKW = Air Power Total / (Total_Eff / 100)
-    bkw_pred = np.where(teff_pred > 0, air_power_t / (teff_pred / 100.0), 0.0)
+    bkw_pred = np.divide(air_power_t, (teff_pred / 100.0), out=np.zeros_like(air_power_t), where=(teff_pred > 0))
     
     # Air Power Static = 2.725 * Q * FSP_floored * 1e-6
     air_power_st = 2.725 * q_cmh_range * np.clip(fsp_pred, 0, None) * 1e-6
     
     # Static Eff = Air Power Static / BKW
-    seff_pred = np.where(bkw_pred > 0, (air_power_st / bkw_pred) * 100.0, 0.0)
+    seff_pred = np.divide(air_power_st, bkw_pred, out=np.zeros_like(air_power_st), where=(bkw_pred > 0)) * 100.0
 
     out = pd.DataFrame({
         'ANGLE': angle,
@@ -143,6 +143,7 @@ def find_motor_recommendation(
     required_cmh: float,
     required_sp: float,
     design_rpm: float,
+    allowed_poles: list[int] = None,
 ) -> list:
     """
     For each standard motor speed use fan laws to scale the interpolated
@@ -152,6 +153,8 @@ def find_motor_recommendation(
     rows = []
 
     for motor in STANDARD_MOTORS:
+        if allowed_poles and motor['poles'] not in allowed_poles:
+            continue
         n_ratio = motor['rpm'] / design_rpm
 
         cmh_target_design = required_cmh / n_ratio
@@ -199,6 +202,7 @@ def cross_fan_recommend(
     df_computed_map: dict,
     required_cmh: float,
     required_sp: float,
+    allowed_poles: list[int] = None,
 ) -> list[dict]:
     """
     For each fan in *fan_ids* run motor recommendation and return a unified ranked list.
@@ -219,7 +223,7 @@ def cross_fan_recommend(
 
         try:
             recs = find_motor_recommendation(
-                df, required_cmh, required_sp, design_rpm
+                df, required_cmh, required_sp, design_rpm, allowed_poles
             )
         except Exception:
             continue
