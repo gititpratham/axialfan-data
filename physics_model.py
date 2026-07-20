@@ -83,13 +83,13 @@ def predict_performance(
     air_power_t = 2.725 * q_cmh_range * ftp_pred * 1e-6
     
     # BKW = Air Power Total / (Total_Eff / 100)
-    bkw_pred = np.where(teff_pred > 0, air_power_t / (teff_pred / 100.0), 0.0)
+    bkw_pred = np.divide(air_power_t, (teff_pred / 100.0), out=np.zeros_like(air_power_t), where=(teff_pred > 0))
     
     # Air Power Static = 2.725 * Q * FSP_floored * 1e-6
     air_power_st = 2.725 * q_cmh_range * np.clip(fsp_pred, 0, None) * 1e-6
     
     # Static Eff = Air Power Static / BKW
-    seff_pred = np.where(bkw_pred > 0, (air_power_st / bkw_pred) * 100.0, 0.0)
+    seff_pred = np.divide(air_power_st, bkw_pred, out=np.zeros_like(air_power_st), where=(bkw_pred > 0)) * 100.0
 
     out = pd.DataFrame({
         'ANGLE': angle,
