@@ -122,14 +122,3 @@ axialfan-data/
 └── README.md           # Project documentation
 ```
 
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to open an issue or submit a pull request for improvements, bug fixes, or new features.
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License.
