@@ -62,7 +62,7 @@ def _fan_id_from_name(display_name: str) -> str:
 
 # ── Page config ────────────────────────────────────────────────
 st.set_page_config(
-    page_title='Fan Performance Tool — 18" & 24"',
+    page_title='Tube Axial Fan Performance Tool',
     page_icon='🌀',
     layout='wide',
     initial_sidebar_state='expanded',

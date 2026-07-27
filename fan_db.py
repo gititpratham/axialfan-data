@@ -80,13 +80,11 @@ CREATE TABLE IF NOT EXISTS test_rows (
 
 
 def init_db() -> None:
-    """Create tables and seed built-in fans if the DB is fresh."""
+    """Create tables and seed built-in fans."""
     with _conn() as con:
         con.executescript(_DDL)
 
-    # Seed built-in fans only if the table is empty
-    if not list_fans():
-        _seed_builtin_fans()
+    _seed_builtin_fans()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -94,21 +92,32 @@ def init_db() -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _seed_builtin_fans() -> None:
-    """Import TA18 and TA24 from data.py into the DB on first run."""
-    from data import TA18, TA24, DEFAULT_CONSTANTS, DEFAULT_CONSTANTS_24
+    """Import built-in fans from data.py into the DB if missing."""
+    from data import (
+        TA14, TA16, TA18, TA24, TA41, TA48, TA54,
+        DEFAULT_CONSTANTS_14, DEFAULT_CONSTANTS_16, DEFAULT_CONSTANTS, DEFAULT_CONSTANTS_24,
+        DEFAULT_CONSTANTS_41, DEFAULT_CONSTANTS_48, DEFAULT_CONSTANTS_54,
+    )
 
-    _upsert_fan(
-        fan_id="18in_TA",
-        display_name='18" Tube Axial Fan',
-        constants=DEFAULT_CONSTANTS,
-        raw_dict=TA18,
-    )
-    _upsert_fan(
-        fan_id="24in_TA",
-        display_name='24" Tube Axial Fan',
-        constants=DEFAULT_CONSTANTS_24,
-        raw_dict=TA24,
-    )
+    builtin_fans = [
+        ("14in_TA", '14" Tube Axial Fan', DEFAULT_CONSTANTS_14, TA14),
+        ("16in_TA", '16" Tube Axial Fan', DEFAULT_CONSTANTS_16, TA16),
+        ("18in_TA", '18" Tube Axial Fan', DEFAULT_CONSTANTS, TA18),
+        ("24in_TA", '24" Tube Axial Fan', DEFAULT_CONSTANTS_24, TA24),
+        ("41in_TA", '41" Tube Axial Fan', DEFAULT_CONSTANTS_41, TA41),
+        ("48in_TA", '48" Tube Axial Fan', DEFAULT_CONSTANTS_48, TA48),
+        ("54in_TA", '54" Tube Axial Fan', DEFAULT_CONSTANTS_54, TA54),
+    ]
+
+    existing_ids = {f["fan_id"] for f in list_fans()}
+    for fid, name, consts, raw_dict in builtin_fans:
+        if fid not in existing_ids:
+            _upsert_fan(
+                fan_id=fid,
+                display_name=name,
+                constants=consts,
+                raw_dict=raw_dict,
+            )
 
 
 def _upsert_fan(
