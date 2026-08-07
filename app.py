@@ -179,8 +179,17 @@ with st.sidebar:
         test_temp_c=test_temp, test_baro_mmhg=test_baro,
         design_temp_c=design_temp, design_baro_mmhg=design_baro,
         design_speed_rpm=design_speed, motor_efficiency=motor_eff,
+        poles=_db_constants.get('poles', 4),
         g=9.81,
     )
+
+    st.markdown('')
+    if st.button('💾 Save Parameters to DB', type='primary', use_container_width=True, help='Save CW (Wattmeter Corr) and test parameters permanently for this fan'):
+        from fan_db import save_constants
+        save_constants(selected_fan, constants)
+        st.success('✅ Parameters permanently saved to DB!')
+        st.rerun()
+
 
 
 # ────────────────────────────────────────────────────────────────

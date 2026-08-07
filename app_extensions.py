@@ -105,9 +105,9 @@ def _inject_css():
 # ─────────────────────────────────────────────────────────────────────────────
 
 MODES = [
+    "🌐  Cross-Fan Selection",
     "⚙️  Fan Analysis",
     "🗄️  Database Manager",
-    "🌐  Cross-Fan Selection",
 ]
 
 
@@ -131,10 +131,10 @@ def render_sidebar_mode_selector() -> str:
 
 def render_extension_page(mode: str) -> None:
     _inject_css()
-    if mode == "🗄️  Database Manager":
-        _page_db_manager()
-    elif mode == "🌐  Cross-Fan Selection":
+    if mode == "🌐  Cross-Fan Selection":
         _page_cross_fan_selection()
+    elif mode == "🗄️  Database Manager":
+        _page_db_manager()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -570,9 +570,10 @@ def _page_cross_fan_selection() -> None:
     def _ml_at(pred_df, cmh, col):
         ps = pred_df.sort_values("Q_CMH")
         try:
-            return float(_i1d(ps["Q_CMH"], ps[col], kind="linear", fill_value="extrapolate")(cmh))
+            val = float(_i1d(ps["Q_CMH"], ps[col], kind="linear", fill_value="extrapolate")(cmh))
+            return np.nan if (np.isnan(val) or np.isinf(val)) else val
         except Exception:
-            return float("nan")
+            return np.nan
 
     op_rows = []
     for rec in recommendations:
@@ -581,17 +582,18 @@ def _page_cross_fan_selection() -> None:
         try:
             pf = _pfan(computed, rec["angle"])
             op_rows.append({
-                "Fan":           rec["fan_name"],
-                "Motor":         rec["motor_label"],
-                "Angle (°)":     rec["angle"],
-                "FSP (mm WG)":   round(_ml_at(pf, req_cmh, "FSP"), 2),
-                "FTP (mm WG)":   round(_ml_at(pf, req_cmh, "FTP"), 2),
-                "BKW (kW)":      round(_ml_at(pf, req_cmh, "BKW"), 3),
-                "η Static (%)":  round(_ml_at(pf, req_cmh, "Static_Eff"), 1),
-                "η Total (%)":   round(_ml_at(pf, req_cmh, "Total_Eff"), 1),
+                "Fan":           str(rec["fan_name"]),
+                "Motor":         str(rec["motor_label"]),
+                "Angle (°)":     float(rec["angle"]),
+                "FSP (mm WG)":   round(float(_ml_at(pf, req_cmh, "FSP")), 2),
+                "FTP (mm WG)":   round(float(_ml_at(pf, req_cmh, "FTP")), 2),
+                "BKW (kW)":      round(float(_ml_at(pf, req_cmh, "BKW")), 3),
+                "η Static (%)":  round(float(_ml_at(pf, req_cmh, "Static_Eff")), 1),
+                "η Total (%)":   round(float(_ml_at(pf, req_cmh, "Total_Eff")), 1),
             })
         except Exception:
             pass
+
 
     if op_rows:
         st.dataframe(pd.DataFrame(op_rows), use_container_width=True, hide_index=True)

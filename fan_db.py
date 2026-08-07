@@ -92,23 +92,37 @@ def init_db() -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _seed_builtin_fans() -> None:
-    """Import built-in fans from data.py into the DB if missing."""
+    """Import built-in fans from data.py into the DB."""
     from data import (
-        TA14, TA16, TA18, TA24, TA41, TA48, TA54,
-        DEFAULT_CONSTANTS_14, DEFAULT_CONSTANTS_16, DEFAULT_CONSTANTS, DEFAULT_CONSTANTS_24,
-        DEFAULT_CONSTANTS_41, DEFAULT_CONSTANTS_48, DEFAULT_CONSTANTS_54,
+        TA14, TA16, TA18, TA24_6P, TA24_4P, TA41, TA48_6P, TA48_4P, TA54_6P, TA54_4P,
+        DEFAULT_CONSTANTS_14, DEFAULT_CONSTANTS_16, DEFAULT_CONSTANTS,
+        DEFAULT_CONSTANTS_24_6P, DEFAULT_CONSTANTS_24_4P,
+        DEFAULT_CONSTANTS_41,
+        DEFAULT_CONSTANTS_48_6P, DEFAULT_CONSTANTS_48_4P,
+        DEFAULT_CONSTANTS_54_6P, DEFAULT_CONSTANTS_54_4P,
     )
 
     builtin_fans = [
-        ("14in_TA", '14" Tube Axial Fan', DEFAULT_CONSTANTS_14, TA14),
-        ("16in_TA", '16" Tube Axial Fan', DEFAULT_CONSTANTS_16, TA16),
-        ("18in_TA", '18" Tube Axial Fan', DEFAULT_CONSTANTS, TA18),
-        ("24in_TA", '24" Tube Axial Fan', DEFAULT_CONSTANTS_24, TA24),
-        ("41in_TA", '41" Tube Axial Fan', DEFAULT_CONSTANTS_41, TA41),
-        ("48in_TA", '48" Tube Axial Fan', DEFAULT_CONSTANTS_48, TA48),
-        ("54in_TA", '54" Tube Axial Fan', DEFAULT_CONSTANTS_54, TA54),
+        ("14in_TA_2P", '14" Tube Axial Fan (2-Pole)', DEFAULT_CONSTANTS_14, TA14),
+        ("16in_TA_4P", '16" Tube Axial Fan (4-Pole)', DEFAULT_CONSTANTS_16, TA16),
+        ("18in_TA_4P", '18" Tube Axial Fan (4-Pole)', DEFAULT_CONSTANTS, TA18),
+        ("24in_TA_6P", '24" Tube Axial Fan (6-Pole)', DEFAULT_CONSTANTS_24_6P, TA24_6P),
+        ("24in_TA_4P", '24" Tube Axial Fan (4-Pole)', DEFAULT_CONSTANTS_24_4P, TA24_4P),
+        ("41in_TA_6P", '41" Tube Axial Fan (6-Pole)', DEFAULT_CONSTANTS_41, TA41),
+        ("48in_TA_6P", '48" Tube Axial Fan (6-Pole)', DEFAULT_CONSTANTS_48_6P, TA48_6P),
+        ("48in_TA_4P", '48" Tube Axial Fan (4-Pole)', DEFAULT_CONSTANTS_48_4P, TA48_4P),
+        ("54in_TA_6P", '54" Tube Axial Fan (6-Pole)', DEFAULT_CONSTANTS_54_6P, TA54_6P),
+        ("54in_TA_4P", '54" Tube Axial Fan (4-Pole)', DEFAULT_CONSTANTS_54_4P, TA54_4P),
     ]
 
+    # Delete legacy un-suffixed builtin fans if present to ensure clean pole separation
+    legacy_ids = {"14in_TA", "16in_TA", "18in_TA", "24in_TA", "41in_TA", "48in_TA", "54in_TA"}
+    existing_ids = {f["fan_id"] for f in list_fans()}
+    for leg_id in legacy_ids:
+        if leg_id in existing_ids:
+            delete_fan(leg_id)
+
+    # Refresh existing_ids after legacy cleanup
     existing_ids = {f["fan_id"] for f in list_fans()}
     for fid, name, consts, raw_dict in builtin_fans:
         if fid not in existing_ids:
@@ -118,6 +132,12 @@ def _seed_builtin_fans() -> None:
                 constants=consts,
                 raw_dict=raw_dict,
             )
+        else:
+            cur_const = get_fan_constants(fid)
+            if "poles" not in cur_const or cur_const.get("design_speed_rpm") != consts.get("design_speed_rpm"):
+                cur_const.update(consts)
+                save_constants(fid, cur_const)
+
 
 
 def _upsert_fan(
