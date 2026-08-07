@@ -80,11 +80,52 @@ CREATE TABLE IF NOT EXISTS test_rows (
 
 
 def init_db() -> None:
-    """Create tables and seed built-in fans."""
+    """Create tables, seed built-in fans, and auto-split any multi-pole fans in DB."""
     with _conn() as con:
         con.executescript(_DDL)
 
     _seed_builtin_fans()
+    _split_multipole_db_fans()
+
+
+def _split_multipole_db_fans() -> None:
+    """Scan all fans in the DB and split any that contain test rows for multiple pole classes."""
+    from data import infer_design_rpm
+    for fan in list_fans():
+        fid = fan["fan_id"]
+        name = fan["display_name"]
+        try:
+            df = get_raw_df(fid)
+            angle_poles = {}
+            for angle in df["ANGLE"].unique():
+                ang_df = df[df["ANGLE"] == angle]
+                med_rpm = ang_df["RPM"].median()
+                pole = infer_design_rpm([med_rpm])[1]
+                angle_poles[angle] = pole
+            
+            unique_poles = sorted(list(set(angle_poles.values())))
+            if len(unique_poles) > 1:
+                constants = get_fan_constants(fid)
+                for pole in unique_poles:
+                    angles_for_pole = [ang for ang, p in angle_poles.items() if p == pole]
+                    sub_df = df[df["ANGLE"].isin(angles_for_pole)].reset_index(drop=True)
+                    sub_df["Srno"] = list(range(1, len(sub_df) + 1))
+                    
+                    std_rpm = 950 if pole == 6 else (1460 if pole == 4 else 2850)
+                    base_id = fid.rsplit("_", 1)[0] if "_" in fid else fid
+                    new_id = f"{base_id}_{pole}P"
+                    base_name = name.split(" (")[0]
+                    new_name = f"{base_name} ({pole}-Pole)"
+                    
+                    new_consts = dict(constants)
+                    new_consts["poles"] = pole
+                    new_consts["design_speed_rpm"] = std_rpm
+                    
+                    _upsert_fan(new_id, new_name, new_consts, sub_df.to_dict(orient="list"))
+                delete_fan(fid)
+        except Exception:
+            pass
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
