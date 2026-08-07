@@ -91,6 +91,8 @@ def predict_performance(
     
     # Static Eff = Air Power Static / BKW
     seff_pred = np.divide(air_power_st, bkw_pred, out=np.zeros_like(air_power_st), where=(bkw_pred > 0)) * 100.0
+    seff_pred = np.clip(seff_pred, 0, 89.9)
+
 
     out = pd.DataFrame({
         'ANGLE': angle,

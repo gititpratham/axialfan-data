@@ -529,7 +529,13 @@ def _page_cross_fan_selection() -> None:
 
     # ── All Combinations Ranked table ─────────────────────────────────────────
     st.markdown("---")
-    st.markdown("### 📋 All Combinations Ranked")
+    st.markdown("### 📋 All Combinations Ranked (Fan-Law Scaled Operating Point)")
+    st.markdown(
+        '<div class="info-badge">💡 <strong>Fan Laws Applied (Q∝N, SP∝N², P∝N³):</strong> '
+        'This table scales each fan speed and blade angle so that the fan <strong>actually delivers</strong> '
+        'your required volume and static pressure. Motor rating, BKW, and efficiency are evaluated at this duty point.</div>',
+        unsafe_allow_html=True,
+    )
 
     _tbl_ranked = []
     for _i, _rec in enumerate(recommendations):
@@ -562,7 +568,14 @@ def _page_cross_fan_selection() -> None:
     # ── ML Operating Point Table — all sensible models ───────────────────────
     st.markdown("---")
     disp_flow = convert_flow_out(req_cmh)
-    st.markdown(f"### 📈 Performance at Your Operating Point — {disp_flow:.0f} {unit} / {req_sp:.1f} mm WG")
+    st.markdown(f"### 📈 Fixed Nominal Speed Performance at {disp_flow:.0f} {unit}")
+    st.markdown(
+        f'<div class="info-badge">ℹ️ <strong>Fixed Nominal Speed Evaluation:</strong> '
+        f'Directly evaluates/extrapolates each fan\'s performance curve at its <strong>fixed nominal speed</strong> '
+        f'if forced to pass {disp_flow:.0f} {unit}. If a smaller fan cannot physically deliver {disp_flow:.0f} {unit} at fixed speed, '
+        f'static pressure drops to zero/choke and static efficiency is floored at 0.0%.</div>',
+        unsafe_allow_html=True,
+    )
 
     from physics_model import predict_performance as _pfan
     from scipy.interpolate import interp1d as _i1d
@@ -571,7 +584,14 @@ def _page_cross_fan_selection() -> None:
         ps = pred_df.sort_values("Q_CMH")
         try:
             val = float(_i1d(ps["Q_CMH"], ps[col], kind="linear", fill_value="extrapolate")(cmh))
-            return np.nan if (np.isnan(val) or np.isinf(val)) else val
+            if np.isnan(val) or np.isinf(val):
+                return np.nan
+            if col in ["Static_Eff", "Total_Eff"]:
+                fsp_val = float(_i1d(ps["Q_CMH"], ps["FSP"], kind="linear", fill_value="extrapolate")(cmh))
+                if fsp_val <= 0 and col == "Static_Eff":
+                    return 0.0
+                return max(0.0, val)
+            return val
         except Exception:
             return np.nan
 
@@ -599,6 +619,7 @@ def _page_cross_fan_selection() -> None:
         st.dataframe(pd.DataFrame(op_rows), use_container_width=True, hide_index=True)
     else:
         st.info("Could not compute estimates.")
+
 
     # ── Full predicted curves — top reasonable models only ────────────────────
     from plots import create_ml_prediction_curves
