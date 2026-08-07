@@ -261,13 +261,8 @@ def create_3d_surface(df, target='FSP', title=None):
     title = title or f'3D Surface — {target}'
     n_angles = df['ANGLE'].nunique()
     factor, unit = _flow_conv()
-    # For very few angles, reduce resolution to avoid NaN-dominated grids
-    grid_n = 50 if n_angles >= 3 else 30
-    a_rng = np.linspace(df['ANGLE'].min(), df['ANGLE'].max(), grid_n)
-    v_rng = np.linspace(df['Q_CMH'].min() * factor, df['Q_CMH'].max() * factor, grid_n)
-    ag, vg = np.meshgrid(a_rng, v_rng)
+
     scaled_q = df['Q_CMH'] * factor
-    pts = np.column_stack([df['ANGLE'], scaled_q])
     zvals = df[target].values
     z_title = target
     if target in ('Q_CMH', 'Qt_CMH'):
@@ -275,11 +270,57 @@ def create_3d_surface(df, target='FSP', title=None):
         z_title = f'Volume ({unit})'
         title = title.replace('Q_CMH', f'Q ({unit})').replace('Qt_CMH', f'Qt ({unit})')
 
+    # If single blade angle tested, render a 3D Scatter/Line curve instead of 2D surface grid
+    if n_angles < 2:
+        ang_val = df['ANGLE'].iloc[0]
+        fig = go.Figure(go.Scatter3d(
+            x=df['ANGLE'], y=scaled_q, z=zvals,
+            mode='lines+markers',
+            marker=dict(size=6, color=zvals, colorscale='Viridis', showscale=True),
+            line=dict(width=4, color='#00D4FF'),
+            name=f'Angle {ang_val}°'
+        ))
+        fig.update_layout(
+            title=dict(text=f'🌐 {title} — Single Angle Tested ({ang_val}°)', font=dict(size=18, color=_FONT_CLR)),
+            scene=dict(xaxis_title='Blade Angle (°)',
+                       yaxis_title=f'Volume ({unit})', zaxis_title=z_title,
+                       bgcolor=_CHART_BG,
+                       xaxis=dict(gridcolor=_GRID),
+                       yaxis=dict(gridcolor=_GRID),
+                       zaxis=dict(gridcolor=_GRID)),
+            template='plotly_dark', paper_bgcolor=_PAPER_BG,
+            font=dict(color=_FONT_CLR, family='Inter, sans-serif'),
+            height=620, margin=dict(t=50, b=30, l=30, r=30))
+        return fig
+
+    grid_n = 50 if n_angles >= 3 else 30
+    a_rng = np.linspace(df['ANGLE'].min(), df['ANGLE'].max(), grid_n)
+    v_rng = np.linspace(df['Q_CMH'].min() * factor, df['Q_CMH'].max() * factor, grid_n)
+    ag, vg = np.meshgrid(a_rng, v_rng)
+    pts = np.column_stack([df['ANGLE'], scaled_q])
+
     zg = None
     for method in ('cubic', 'linear', 'nearest'):
-        zg = griddata(pts, zvals, (ag, vg), method=method)
-        if not np.all(np.isnan(zg)):
-            break
+        try:
+            zg = griddata(pts, zvals, (ag, vg), method=method)
+            if zg is not None and not np.all(np.isnan(zg)):
+                break
+        except Exception:
+            continue
+
+    if zg is None or np.all(np.isnan(zg)):
+        fig = go.Figure(go.Scatter3d(
+            x=df['ANGLE'], y=scaled_q, z=zvals,
+            mode='markers',
+            marker=dict(size=6, color=zvals, colorscale='Viridis', showscale=True),
+        ))
+        fig.update_layout(
+            title=dict(text=f'🌐 {title}', font=dict(size=18, color=_FONT_CLR)),
+            scene=dict(xaxis_title='Blade Angle (°)', yaxis_title=f'Volume ({unit})', zaxis_title=z_title,
+                       bgcolor=_CHART_BG),
+            template='plotly_dark', paper_bgcolor=_PAPER_BG, height=620
+        )
+        return fig
 
     fig = go.Figure(go.Surface(
         x=ag, y=vg, z=zg, colorscale='Viridis', opacity=0.92,
@@ -297,6 +338,7 @@ def create_3d_surface(df, target='FSP', title=None):
         font=dict(color=_FONT_CLR, family='Inter, sans-serif'),
         height=620, margin=dict(t=50, b=30, l=30, r=30))
     return fig
+
 
 
 # ────────────────────────────────────────────────────────────────
