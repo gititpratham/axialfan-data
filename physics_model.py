@@ -1,10 +1,11 @@
 import numpy as np
 import pandas as pd
 
-# Standard motor catalogue & motor recommendation
+# Standard motor catalogue — only 3 pole classes (2 / 4 / 6 pole).
+# 730 RPM measured data is treated as 6-pole; 950 RPM is the catalogue standard.
 STANDARD_MOTORS = [
     {'rpm': 950,  'poles': 6, 'label': '950 RPM — 6 Pole'},
-    {'rpm': 1440, 'poles': 4, 'label': '1440 RPM — 4 Pole'},
+    {'rpm': 1460, 'poles': 4, 'label': '1460 RPM — 4 Pole'},
     {'rpm': 2850, 'poles': 2, 'label': '2850 RPM — 2 Pole'},
 ]
 

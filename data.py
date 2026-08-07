@@ -249,6 +249,45 @@ TA54 = {
 }
 
 # ────────────────────────────────────────────────────────────────
+# Pole-based RPM inference
+# ────────────────────────────────────────────────────────────────
+# Only 3 standard motor pole-classes are used in this catalogue.
+# 730 RPM fans (which would be "8-pole" in strict theory) are
+# absorbed into 6-pole because they share the same motor family
+# and the same 950 RPM catalogue rating is used for fan-law scaling.
+_STANDARD_MOTOR_SPEEDS = [
+    (950,  6),   # 6-pole @ 50 Hz  (covers both ~730 and ~950 measured RPM)
+    (1460, 4),   # 4-pole @ 50 Hz
+    (2850, 2),   # 2-pole @ 50 Hz
+]
+
+
+def infer_design_rpm(raw_rpm_list: list) -> tuple[int, int]:
+    """
+    Given a list of raw measured RPM values, snap to the nearest
+    standard motor speed and return (standard_rpm, poles).
+
+    Rules
+    -----
+    * Uses the median measured RPM (robust to free-delivery dips).
+    * Only three pole classes exist: 2-pole (2850), 4-pole (1460),
+      6-pole (950).  Any RPM ≤ ~1200 maps to 6-pole; anything ~730
+      is also 6-pole (no separate 8-pole class).
+
+    Returns
+    -------
+    (standard_rpm, poles)  e.g. (950, 6)  or  (1460, 4)
+    """
+    import numpy as np
+    median_rpm = float(np.median(raw_rpm_list))
+    best_rpm, best_poles = min(
+        _STANDARD_MOTOR_SPEEDS,
+        key=lambda sp: abs(sp[0] - median_rpm),
+    )
+    return best_rpm, best_poles
+
+
+# ────────────────────────────────────────────────────────────────
 # Default test / design constants — one dict per fan size
 # ────────────────────────────────────────────────────────────────
 DEFAULT_CONSTANTS_14 = {
@@ -258,7 +297,8 @@ DEFAULT_CONSTANTS_14 = {
     'test_baro_mmhg':    760,
     'design_baro_mmhg':  760,
     'design_temp_c':     30,
-    'design_speed_rpm':  2155,     # RPM (avg of 12" [2850] and 16" [1460])
+    'design_speed_rpm':  2155,     # median RPM from TA14 data; between 4-pole and 2-pole
+    'poles':             2,        # 2-pole (closest standard above median ~2150)
     'motor_efficiency':  0.85,     # avg of 12" [0.89] and 16" [0.81]
     'cw':                4.0,
     'g':                 9.81,
@@ -271,7 +311,8 @@ DEFAULT_CONSTANTS_16 = {
     'test_baro_mmhg':    760,
     'design_baro_mmhg':  760,
     'design_temp_c':     30,
-    'design_speed_rpm':  1460,     # RPM
+    'design_speed_rpm':  1460,     # 4-pole induction motor (median RPM ~1460)
+    'poles':             4,
     'motor_efficiency':  0.81,
     'cw':                4.0,
     'g':                 9.81,
@@ -284,8 +325,9 @@ DEFAULT_CONSTANTS = {
     'test_baro_mmhg':    760,      # mm Hg
     'design_baro_mmhg':  760,      # mm Hg
     'design_temp_c':     30,       # °C
-    'design_speed_rpm':  1460,     # RPM
-    'motor_efficiency':  0.81,     # 72 %
+    'design_speed_rpm':  1460,     # 4-pole induction motor (median RPM ~1455)
+    'poles':             4,
+    'motor_efficiency':  0.81,
     'cw':                6.6,      # Wattmeter correction (CT/PT ratio)
     'g':                 9.81,     # m/s²
 }
@@ -297,7 +339,8 @@ DEFAULT_CONSTANTS_24 = {
     'test_baro_mmhg':    760,
     'design_baro_mmhg':  760,
     'design_temp_c':     30,
-    'design_speed_rpm':  978,      # RPM (from test data)
+    'design_speed_rpm':  950,      # 6-pole induction motor (dominant RPM group ~976–978)
+    'poles':             6,
     'motor_efficiency':  0.81,
     'cw':                12.7,
     'g':                 9.81,
@@ -310,7 +353,8 @@ DEFAULT_CONSTANTS_41 = {
     'test_baro_mmhg':    760,
     'design_baro_mmhg':  760,
     'design_temp_c':     30,
-    'design_speed_rpm':  980,      # RPM
+    'design_speed_rpm':  950,      # 6-pole induction motor (dominant RPM group ~980)
+    'poles':             6,
     'motor_efficiency':  0.81,
     'cw':                20.0,
     'g':                 9.81,
@@ -323,7 +367,8 @@ DEFAULT_CONSTANTS_48 = {
     'test_baro_mmhg':    760,
     'design_baro_mmhg':  760,
     'design_temp_c':     30,
-    'design_speed_rpm':  1460,     # RPM
+    'design_speed_rpm':  1460,     # 4-pole (dominant RPM group ~1480); 8-pole rows (~737) also present
+    'poles':             4,
     'motor_efficiency':  0.81,
     'cw':                80.0,
     'g':                 9.81,
@@ -336,11 +381,13 @@ DEFAULT_CONSTANTS_54 = {
     'test_baro_mmhg':    760,
     'design_baro_mmhg':  760,
     'design_temp_c':     30,
-    'design_speed_rpm':  980,      # RPM
+    'design_speed_rpm':  950,      # 6-pole induction motor (dominant RPM group ~992)
+    'poles':             6,
     'motor_efficiency':  0.81,
     'cw':                20.0,
     'g':                 9.81,
 }
+
 
 TA14 = {
     'Srno': list(range(1, 11)),
@@ -354,20 +401,63 @@ TA14 = {
     'RPM':   [2209.0, 2208.5, 2203.5, 2191.5, 2175.5, 2156.5, 2138.5, 2111.5, 2092.0, 2029.0],
 }
 
+def filter_raw_dict_by_pole(raw_dict: dict, target_pole: int) -> dict:
+    """Filter raw test data dict to rows matching target_pole class."""
+    df = pd.DataFrame(raw_dict)
+    poles = [infer_design_rpm([r])[1] for r in df['RPM']]
+    df['_pole'] = poles
+    filtered = df[df['_pole'] == target_pole].drop(columns=['_pole']).reset_index(drop=True)
+    filtered['Srno'] = list(range(1, len(filtered) + 1))
+    return {col: filtered[col].tolist() for col in filtered.columns}
+
+
+TA24_6P = filter_raw_dict_by_pole(TA24, 6)
+TA24_4P = filter_raw_dict_by_pole(TA24, 4)
+
+TA48_6P = filter_raw_dict_by_pole(TA48, 6)
+TA48_4P = filter_raw_dict_by_pole(TA48, 4)
+
+TA54_6P = filter_raw_dict_by_pole(TA54, 6)
+TA54_4P = filter_raw_dict_by_pole(TA54, 4)
+
+DEFAULT_CONSTANTS_24_6P = {**DEFAULT_CONSTANTS_24, 'design_speed_rpm': 950, 'poles': 6}
+DEFAULT_CONSTANTS_24_4P = {**DEFAULT_CONSTANTS_24, 'design_speed_rpm': 1460, 'poles': 4}
+
+DEFAULT_CONSTANTS_48_6P = {**DEFAULT_CONSTANTS_48, 'design_speed_rpm': 950, 'poles': 6}
+DEFAULT_CONSTANTS_48_4P = {**DEFAULT_CONSTANTS_48, 'design_speed_rpm': 1460, 'poles': 4}
+
+DEFAULT_CONSTANTS_54_6P = {**DEFAULT_CONSTANTS_54, 'design_speed_rpm': 950, 'poles': 6}
+DEFAULT_CONSTANTS_54_4P = {**DEFAULT_CONSTANTS_54, 'design_speed_rpm': 1460, 'poles': 4}
+
+
 # Map fan label → (raw_data_dict, default_constants)
 FAN_REGISTRY = {
+    '14" Tube Axial Fan (2-Pole)': (TA14, DEFAULT_CONSTANTS_14),
+    '16" Tube Axial Fan (4-Pole)': (TA16, DEFAULT_CONSTANTS_16),
+    '18" Tube Axial Fan (4-Pole)': (TA18, DEFAULT_CONSTANTS),
+    '24" Tube Axial Fan (6-Pole)': (TA24_6P, DEFAULT_CONSTANTS_24_6P),
+    '24" Tube Axial Fan (4-Pole)': (TA24_4P, DEFAULT_CONSTANTS_24_4P),
+    '41" Tube Axial Fan (6-Pole)': (TA41, DEFAULT_CONSTANTS_41),
+    '48" Tube Axial Fan (6-Pole)': (TA48_6P, DEFAULT_CONSTANTS_48_6P),
+    '48" Tube Axial Fan (4-Pole)': (TA48_4P, DEFAULT_CONSTANTS_48_4P),
+    '54" Tube Axial Fan (6-Pole)': (TA54_6P, DEFAULT_CONSTANTS_54_6P),
+    '54" Tube Axial Fan (4-Pole)': (TA54_4P, DEFAULT_CONSTANTS_54_4P),
+
+    # Legacy fallbacks
     '14" Tube Axial Fan': (TA14, DEFAULT_CONSTANTS_14),
     '16" Tube Axial Fan': (TA16, DEFAULT_CONSTANTS_16),
     '18" Tube Axial Fan': (TA18, DEFAULT_CONSTANTS),
-    '24" Tube Axial Fan': (TA24, DEFAULT_CONSTANTS_24),
+    '24" Tube Axial Fan': (TA24_6P, DEFAULT_CONSTANTS_24_6P),
     '41" Tube Axial Fan': (TA41, DEFAULT_CONSTANTS_41),
-    '48" Tube Axial Fan': (TA48, DEFAULT_CONSTANTS_48),
-    '54" Tube Axial Fan': (TA54, DEFAULT_CONSTANTS_54),
+    '48" Tube Axial Fan': (TA48_4P, DEFAULT_CONSTANTS_48_4P),
+    '54" Tube Axial Fan': (TA54_6P, DEFAULT_CONSTANTS_54_6P),
 }
 
 
-def get_raw_data(fan: str = '18" Tube Axial Fan') -> pd.DataFrame:
+def get_raw_data(fan: str = '18" Tube Axial Fan (4-Pole)') -> pd.DataFrame:
     """Return a fresh copy of the raw test data for the selected fan."""
+    if fan not in FAN_REGISTRY:
+        fan = '18" Tube Axial Fan (4-Pole)'
     raw, _ = FAN_REGISTRY[fan]
     return pd.DataFrame(raw).copy()
 
@@ -375,8 +465,9 @@ def get_raw_data(fan: str = '18" Tube Axial Fan') -> pd.DataFrame:
 def compute_derived_quantities(
     df=None,
     constants=None,
-    fan: str = '18" Tube Axial Fan',
+    fan: str = '18" Tube Axial Fan (4-Pole)',
 ) -> pd.DataFrame:
+
     """
     Compute every derived engineering quantity from the raw test data
     using the supplied (or default) constants.
