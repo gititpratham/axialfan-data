@@ -222,7 +222,16 @@ def cross_fan_recommend(
         df = df_computed_map[fan_id]
         constants = get_fan_constants(fan_id)
         design_rpm = constants.get("design_speed_rpm", 1460)
+        fan_poles = constants.get("poles")
+        if fan_poles is None:
+            fan_poles = 6 if design_rpm <= 1100 else (4 if design_rpm <= 1800 else 2)
+
+        # Skip fans whose native pole rating does not match allowed_poles requirement
+        if allowed_poles and fan_poles not in allowed_poles:
+            continue
+
         display = fan_meta.get(fan_id, {}).get("display_name", fan_id)
+
 
         try:
             recs = find_motor_recommendation(
