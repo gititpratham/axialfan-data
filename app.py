@@ -19,6 +19,7 @@ from data import (
 from physics_model import (
     predict_performance,
     find_best_operating_point, find_motor_recommendation,
+    select_motor_rating,
     TARGET_COLS, STANDARD_MOTORS,
 )
 from plots import (
@@ -71,57 +72,190 @@ st.set_page_config(
 # ── Custom CSS ─────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-.stApp { font-family: 'Inter', sans-serif; }
+html, body, [class*="css"], .stApp {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+    background-color: #FFFFFF !important;
+    color: #0F2A28 !important;
+}
 
+/* Headings */
+h1, h2, h3, h4, h5, h6, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4 {
+    color: #0F2A28 !important;
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 700 !important;
+}
+
+/* Paragraphs & general markdown */
+p, span, div, li, .stMarkdown p, .stMarkdown span {
+    color: #0F2A28;
+}
+
+/* Form Labels & Widget Labels */
+label, label[data-testid="stWidgetLabel"] p, label[data-testid="stWidgetLabel"] span {
+    color: #0F2A28 !important;
+    font-weight: 600 !important;
+    font-size: 0.88rem !important;
+}
+
+/* Inputs, Selectboxes, Number Inputs */
+input, textarea, div[data-baseweb="select"], div[data-baseweb="input"] {
+    background-color: #FFFFFF !important;
+    color: #0F2A28 !important;
+    border-color: #B2DFDB !important;
+    border-radius: 8px !important;
+}
+input:focus, textarea:focus, div[data-baseweb="select"]:focus-within, div[data-baseweb="input"]:focus-within {
+    border-color: #00897B !important;
+    box-shadow: 0 0 0 2px rgba(0, 137, 123, 0.2) !important;
+}
+
+/* Buttons */
+button[kind="primary"], .stButton > button[kind="primary"], button[data-testid="baseButton-primary"] {
+    background: linear-gradient(135deg, #00897B 0%, #007367 100%) !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    font-weight: 700 !important;
+    border-radius: 9px !important;
+    box-shadow: 0 2px 8px rgba(0, 137, 123, 0.25) !important;
+    transition: all 0.2s ease !important;
+}
+button[kind="primary"]:hover, .stButton > button[kind="primary"]:hover {
+    background: linear-gradient(135deg, #007367 0%, #005B52 100%) !important;
+    box-shadow: 0 4px 12px rgba(0, 137, 123, 0.35) !important;
+}
+button[kind="secondary"], .stButton > button[kind="secondary"], button[data-testid="baseButton-secondary"] {
+    background-color: #F8FAF9 !important;
+    color: #0F2A28 !important;
+    border: 1.5px solid #B2DFDB !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+}
+button[kind="secondary"]:hover, .stButton > button[kind="secondary"]:hover {
+    background-color: #E0F2F1 !important;
+    border-color: #00897B !important;
+    color: #00897B !important;
+}
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background-color: #F8FAF9 !important;
+    border-right: 1px solid #E0EFEF !important;
+}
+[data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label {
+    color: #0F2A28 !important;
+}
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+    border-bottom: 2px solid #E0EFEF;
+}
+.stTabs [data-baseweb="tab"] {
+    border-radius: 8px 8px 0 0;
+    padding: 10px 20px;
+    color: #3B5957 !important;
+    font-weight: 600 !important;
+}
+.stTabs [aria-selected="true"] {
+    color: #00897B !important;
+    border-bottom: 2.5px solid #00897B !important;
+    font-weight: 700 !important;
+}
+
+/* Metrics */
+div[data-testid="stMetricValue"] > div {
+    color: #00897B !important;
+    font-weight: 800 !important;
+}
+div[data-testid="stMetricLabel"] > div > p {
+    color: #3B5957 !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.5px !important;
+}
+
+/* Tables & Dataframes */
+.stDataFrame, div[data-testid="stTable"] {
+    border: 1px solid #D1E7E5 !important;
+    border-radius: 10px !important;
+    background: #FFFFFF !important;
+}
+
+/* Expanders */
+div[data-testid="stExpander"] {
+    background: #FFFFFF !important;
+    border: 1px solid #D1E7E5 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 1px 4px rgba(15, 42, 40, 0.03) !important;
+}
+div[data-testid="stExpander"] summary span {
+    color: #0F2A28 !important;
+    font-weight: 600 !important;
+}
+
+/* Main Headers */
 .main-header {
-    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-    padding: 2rem 2.5rem;
-    border-radius: 16px;
+    background: linear-gradient(135deg, #0F2A28 0%, #00897B 100%);
+    padding: 1.8rem 2.2rem;
+    border-radius: 14px;
     margin-bottom: 1.5rem;
-    border: 1px solid rgba(255,255,255,0.1);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    border: 1px solid rgba(0, 137, 123, 0.2);
+    box-shadow: 0 6px 24px rgba(0, 137, 123, 0.15);
 }
 .main-header h1 {
-    color: #fff; font-size: 2rem; font-weight: 700; margin: 0;
-    background: linear-gradient(90deg, #00D4FF, #00FF85);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    color: #FFFFFF !important;
+    font-size: 1.85rem;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -0.5px;
 }
 .main-header p {
-    color: rgba(255,255,255,0.65); font-size: 1rem; margin: .5rem 0 0 0;
+    color: rgba(255, 255, 255, 0.9) !important;
+    font-size: 0.95rem;
+    margin: 0.4rem 0 0 0;
+    line-height: 1.4;
 }
 
 .metric-card {
-    background: linear-gradient(135deg, rgba(15,12,41,.8), rgba(48,43,99,.55));
-    border: 1px solid rgba(255,255,255,.1);
-    border-radius: 12px; padding: 1.2rem; text-align: center;
-    box-shadow: 0 4px 16px rgba(0,0,0,.2);
+    background: #FFFFFF;
+    border: 1px solid #D1E7E5;
+    border-radius: 12px;
+    padding: 1.2rem;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(15, 42, 40, 0.04);
 }
 .metric-card h3 {
-    color: rgba(255,255,255,.55); font-size: .78rem; font-weight: 500;
-    text-transform: uppercase; letter-spacing: 1px; margin: 0;
+    color: #3B5957 !important;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin: 0;
 }
 .metric-card .value {
-    color: #00D4FF; font-size: 1.7rem; font-weight: 700; margin: .3rem 0;
+    color: #00897B;
+    font-size: 1.65rem;
+    font-weight: 800;
+    margin: 0.3rem 0;
 }
 .metric-card .unit {
-    color: rgba(255,255,255,.4); font-size: .72rem;
+    color: #537775;
+    font-size: 0.75rem;
 }
 
 .info-badge {
-    background: rgba(0,212,255,.12); border: 1px solid rgba(0,212,255,.28);
-    border-radius: 8px; padding: .75rem 1.1rem; color: #00D4FF;
-    font-size: .88rem; margin-bottom: 1rem;
+    background: #E0F2F1;
+    border: 1px solid #80CBC4;
+    border-radius: 8px;
+    padding: 0.75rem 1.1rem;
+    color: #0F2A28;
+    font-size: 0.88rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
 }
-
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0f0c29, #1a1a3e);
-}
-
-.stTabs [data-baseweb="tab-list"] { gap: 8px; }
-.stTabs [data-baseweb="tab"]      { border-radius: 8px 8px 0 0; padding: 10px 20px; }
-.stDataFrame                       { border-radius: 8px; overflow: hidden; }
 
 #MainMenu { visibility: hidden; }
 footer    { visibility: hidden; }
@@ -449,39 +583,43 @@ with tab4:
 
         for i, rec in enumerate(motor_recs):
             m, sc, dev = rec['motor'], rec['scaled'], rec['deviation']
+            m_rat     = rec['motor_rating']
             is_best   = rec['recommended']
-            border    = 'rgba(0,255,133,.45)' if is_best else 'rgba(255,255,255,.12)'
-            val_color = '#00FF85' if is_best else '#00D4FF'
+            border    = '#00897B' if is_best else 'rgba(0, 137, 123, 0.22)'
+            val_color = '#00897B' if is_best else '#0F2A28'
+            badge_bg  = '#E0F2F1' if is_best else '#F4F8F7'
+            badge_clr = '#00897B' if is_best else '#4A6966'
             badge     = '🏆 BEST MATCH' if is_best else f'#{i+1}'
             match_lbl = ('Excellent' if dev < 0.2 else 'Good' if dev < 0.4 else 'Fair' if dev < 0.7 else 'Poor')
-            dev_color = '#00FF85' if dev < 0.2 else ('#FFD700' if dev < 0.5 else '#FF4444')
+            dev_color = '#059669' if dev < 0.2 else ('#D97706' if dev < 0.5 else '#DC2626')
 
             with mcols[i]:
                 _angle_str = f"{rec['angle']}°"
                 # V_out and FTP are pure geometry + given constants — exact, no ML
                 _v_out_card = _v_out_req   # same area → same velocity for all cards
                 st.markdown(f"""
-<div class="metric-card" style="border-color:{border};padding:1.4rem;text-align:left">
+<div class="metric-card" style="border: 1.5px solid {border};padding:1.4rem;text-align:left;background:#FFFFFF">
   <div style="text-align:center;margin-bottom:.6rem">
-    <span style="font-size:.75rem;font-weight:600;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px">{badge}</span>
+    <span style="font-size:.75rem;font-weight:700;color:{badge_clr};background:{badge_bg};padding:0.2rem 0.6rem;border-radius:12px;text-transform:uppercase;letter-spacing:1px">{badge}</span>
   </div>
   <div style="text-align:center;margin-bottom:.8rem">
-    <div style="font-size:1.8rem;font-weight:700;color:{val_color}">{m['rpm']} RPM</div>
-    <div style="font-size:.82rem;color:rgba(255,255,255,.45)">{m['poles']}-Pole Induction Motor</div>
+    <div style="font-size:1.8rem;font-weight:800;color:{val_color}">{m['rpm']} RPM</div>
+    <div style="font-size:.82rem;color:#4A6966;font-weight:500">{m['poles']}-Pole Induction Motor</div>
   </div>
-  <hr style="border-color:rgba(255,255,255,.1);margin:.5rem 0">
-  <table style="width:100%;font-size:.83rem;color:#E0E0E0">
-    <tr><td>Blade Angle</td>      <td style="text-align:right;color:#FF6BFF"><b>{_angle_str}</b></td></tr>
+  <hr style="border:none;border-top:1px solid rgba(0,137,123,0.15);margin:.5rem 0">
+  <table style="width:100%;font-size:.83rem;color:#0F2A28">
+    <tr><td>Blade Angle</td>      <td style="text-align:right;color:#00897B"><b>{_angle_str}</b></td></tr>
     <tr><td>Volume Flow</td>      <td style="text-align:right"><b>{convert_flow_out(sc['Q_CMH']):.0f} {unit}</b></td></tr>
     <tr><td>Outlet Velocity</td>  <td style="text-align:right"><b>{_v_out_card:.2f} m/s</b></td></tr>
     <tr><td>Static Press.</td>    <td style="text-align:right"><b>{sc['FSP']:.1f} mm WG</b></td></tr>
     <tr><td>Total Press.</td>     <td style="text-align:right"><b>{_ftp_req:.1f} mm WG</b></td></tr>
     <tr><td>BKW</td>              <td style="text-align:right"><b>{sc['BKW']:.3f} kW</b></td></tr>
+    <tr><td>Motor Rating</td>     <td style="text-align:right;color:#00897B"><b>{m_rat['rating_str']}</b></td></tr>
     <tr><td>&eta; Static</td>     <td style="text-align:right"><b>{sc['Static_Eff']:.1f}%</b></td></tr>
     <tr><td>&eta; Total</td>      <td style="text-align:right"><b>{sc['Total_Eff']:.1f}%</b></td></tr>
   </table>
-  <hr style="border-color:rgba(255,255,255,.1);margin:.5rem 0">
-  <div style="text-align:center;color:{dev_color};font-size:.82rem;font-weight:600">
+  <hr style="border:none;border-top:1px solid rgba(0,137,123,0.15);margin:.5rem 0">
+  <div style="text-align:center;color:{dev_color};font-size:.82rem;font-weight:700">
     {match_lbl} &mdash; &Delta; {dev:.1%} from target
   </div>
 </div>""", unsafe_allow_html=True)
@@ -491,18 +629,20 @@ with tab4:
         st.markdown('#### 📈 Performance Curves per Motor Option')
         for rec in motor_recs:
             m, sc = rec['motor'], rec['scaled']
+            m_rat = rec['motor_rating']
             _pfx  = '🏆 ' if rec['recommended'] else ''
-            label = f"{_pfx}{m['label']} — Blade {rec['angle']}°"
+            label = f"{_pfx}{m['label']} — Blade {rec['angle']}° — Motor Rating: {m_rat['rating_str']}"
             with st.expander(label, expanded=rec['recommended']):
                 flow_val = convert_flow_out(sc['Q_CMH'])
                 flow_target = convert_flow_out(req_cmh)
-                ic = st.columns(4)
+                ic = st.columns(5)
                 ic[0].metric('Volume',          f"{flow_val:.0f} {unit}",
                              f"{flow_val-flow_target:+.0f} vs target")
                 ic[1].metric('Static Pressure', f"{sc['FSP']:.1f} mm WG",
                              f"{sc['FSP']-req_sp:+.2f} vs target")
                 ic[2].metric('BKW',             f"{sc['BKW']:.3f} kW")
-                ic[3].metric('η Total', f"{sc['Total_Eff']:.1f}%")
+                ic[3].metric('Motor Rating',    m_rat['rating_str'], f"Frame {m_rat['frame']}")
+                ic[4].metric('η Total',         f"{sc['Total_Eff']:.1f}%")
                 st.plotly_chart(
                     create_ml_prediction_curves(predict_performance(df, rec['angle']), df, rec['angle']),
                     use_container_width=True,
@@ -514,9 +654,12 @@ with tab4:
         tbl = []
         for rec in motor_recs:
             m, sc = rec['motor'], rec['scaled']
+            m_rat = rec['motor_rating']
             _match_icon = '✅' if rec['deviation'] < 0.3 else '⚠️'
             tbl.append({
                 'Motor':               m['label'],
+                'Motor Rating':        m_rat['rating_str'],
+                'Frame':               m_rat['frame'],
                 'Blade Angle (°)':     rec['angle'],
                 f'Volume ({unit})':    round(convert_flow_out(sc['Q_CMH'])),
                 f'vs Required {unit}': f"{convert_flow_out(sc['Q_CMH'])-convert_flow_out(req_cmh):+.0f}",
@@ -555,6 +698,6 @@ with tab4:
 # ── FOOTER ─────────────────────────────────────────────────────
 st.markdown('---')
 st.markdown(
-    '<div style="text-align:center;color:rgba(255,255,255,.25);font-size:.78rem">'
-    '🌀 Tube Axial Fan Performance Tool (18" & 24") — ML-Powered Engineering Analysis'
+    '<div style="text-align:center;color:#537775;font-size:.82rem;font-weight:500;padding:1rem 0">'
+    '🌀 Tube Axial Fan Performance Tool — Engineering Analysis & Performance Modeling'
     '</div>', unsafe_allow_html=True)

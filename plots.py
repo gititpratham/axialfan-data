@@ -23,21 +23,21 @@ def _flow_conv():
     return 1.0, 'CMH'
 
 # ────────────────────────────────────────────────────────────────
-# Visual constants
+# Visual constants (Light Mode: Teal #00897B & Dark Pine #0F2A28)
 # ────────────────────────────────────────────────────────────────
 ANGLE_COLORS = {
-    20: '#00D4FF',   # Cyan
-    30: '#00FF85',   # Green
-    35: '#FFD700',   # Gold
-    40: '#FF6B35',   # Orange
-    45: '#FF2D55',   # Red-Pink
+    20: '#00897B',   # Primary Vibrant Teal (0, 137, 123)
+    30: '#0288D1',   # Ocean Blue
+    35: '#2E7D32',   # Forest Green
+    40: '#E65100',   # Warm Amber Orange
+    45: '#C2185B',   # Rich Rose
 }
 
-_CHART_BG  = 'rgba(17, 17, 28, 0.8)'
-_PAPER_BG  = 'rgba(17, 17, 28, 0.0)'
-_GRID      = 'rgba(255, 255, 255, 0.08)'
-_FONT_CLR  = '#E0E0E0'
-_PRED_CLR  = '#FF6BFF'   # magenta for ML predictions
+_CHART_BG  = '#FFFFFF'
+_PAPER_BG  = 'rgba(255, 255, 255, 0.0)'
+_GRID      = 'rgba(15, 42, 40, 0.09)'
+_FONT_CLR  = '#0F2A28'   # Dark Pine Slate (15, 42, 40)
+_PRED_CLR  = '#00897B'   # Primary Teal for prediction overlay
 
 
 # ────────────────────────────────────────────────────────────────
@@ -45,16 +45,16 @@ _PRED_CLR  = '#FF6BFF'   # magenta for ML predictions
 # ────────────────────────────────────────────────────────────────
 def _base_layout(title, xtitle, ytitle, height=500):
     return dict(
-        template='plotly_dark',
-        title=dict(text=title, font=dict(size=18, color=_FONT_CLR)),
-        xaxis=dict(title=xtitle, gridcolor=_GRID, zeroline=False),
-        yaxis=dict(title=ytitle, gridcolor=_GRID, zeroline=False),
+        template='plotly_white',
+        title=dict(text=title, font=dict(size=17, color=_FONT_CLR, family='Inter, sans-serif')),
+        xaxis=dict(title=xtitle, gridcolor=_GRID, linecolor='rgba(15, 42, 40, 0.2)', zeroline=False),
+        yaxis=dict(title=ytitle, gridcolor=_GRID, linecolor='rgba(15, 42, 40, 0.2)', zeroline=False),
         plot_bgcolor=_CHART_BG,
         paper_bgcolor=_PAPER_BG,
         font=dict(color=_FONT_CLR, family='Inter, sans-serif'),
         height=height,
-        legend=dict(bgcolor='rgba(0,0,0,0.3)',
-                    bordercolor='rgba(255,255,255,0.15)', borderwidth=1),
+        legend=dict(bgcolor='rgba(255,255,255,0.92)',
+                    bordercolor='rgba(0,137,123,0.25)', borderwidth=1),
         hovermode='x unified',
         margin=dict(t=60, b=60, l=60, r=40),
     )
@@ -180,20 +180,20 @@ def create_combined_performance(df, angle):
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     fig.add_trace(go.Scatter(
         x=d['Q_CMH'] * factor, y=d['FSP'], mode='lines+markers', name='FSP',
-        line=dict(color='#00D4FF', width=3), marker=dict(size=8)),
+        line=dict(color='#00897B', width=3), marker=dict(size=8)),
         secondary_y=False)
     fig.add_trace(go.Scatter(
         x=d['Q_CMH'] * factor, y=d['FTP'], mode='lines+markers', name='FTP',
-        line=dict(color='#00FF85', width=3, dash='dash'), marker=dict(size=8)),
+        line=dict(color='#0F2A28', width=3, dash='dash'), marker=dict(size=8)),
         secondary_y=False)
     fig.add_trace(go.Scatter(
         x=d['Q_CMH'] * factor, y=d['Static_Eff'], mode='lines+markers',
-        name='Static Eff', line=dict(color='#FFD700', width=2.5),
+        name='Static Eff', line=dict(color='#D97706', width=2.5),
         marker=dict(size=7, symbol='diamond')),
         secondary_y=True)
     fig.add_trace(go.Scatter(
         x=d['Q_CMH'] * factor, y=d['Total_Eff'], mode='lines+markers',
-        name='Total Eff', line=dict(color='#FF6B35', width=2.5, dash='dot'),
+        name='Total Eff', line=dict(color='#0288D1', width=2.5, dash='dot'),
         marker=dict(size=7, symbol='diamond')),
         secondary_y=True)
 
@@ -277,18 +277,18 @@ def create_3d_surface(df, target='FSP', title=None):
             x=df['ANGLE'], y=scaled_q, z=zvals,
             mode='lines+markers',
             marker=dict(size=6, color=zvals, colorscale='Viridis', showscale=True),
-            line=dict(width=4, color='#00D4FF'),
+            line=dict(width=4, color='#00897B'),
             name=f'Angle {ang_val}°'
         ))
         fig.update_layout(
             title=dict(text=f'🌐 {title} — Single Angle Tested ({ang_val}°)', font=dict(size=18, color=_FONT_CLR)),
             scene=dict(xaxis_title='Blade Angle (°)',
                        yaxis_title=f'Volume ({unit})', zaxis_title=z_title,
-                       bgcolor=_CHART_BG,
+                       bgcolor='#FAFCFB',
                        xaxis=dict(gridcolor=_GRID),
                        yaxis=dict(gridcolor=_GRID),
                        zaxis=dict(gridcolor=_GRID)),
-            template='plotly_dark', paper_bgcolor=_PAPER_BG,
+            template='plotly_white', paper_bgcolor=_PAPER_BG,
             font=dict(color=_FONT_CLR, family='Inter, sans-serif'),
             height=620, margin=dict(t=50, b=30, l=30, r=30))
         return fig
@@ -317,8 +317,8 @@ def create_3d_surface(df, target='FSP', title=None):
         fig.update_layout(
             title=dict(text=f'🌐 {title}', font=dict(size=18, color=_FONT_CLR)),
             scene=dict(xaxis_title='Blade Angle (°)', yaxis_title=f'Volume ({unit})', zaxis_title=z_title,
-                       bgcolor=_CHART_BG),
-            template='plotly_dark', paper_bgcolor=_PAPER_BG, height=620
+                       bgcolor='#FAFCFB'),
+            template='plotly_white', paper_bgcolor=_PAPER_BG, height=620
         )
         return fig
 
@@ -330,11 +330,11 @@ def create_3d_surface(df, target='FSP', title=None):
         title=dict(text=f'🌐 {title}', font=dict(size=18, color=_FONT_CLR)),
         scene=dict(xaxis_title='Blade Angle (°)',
                    yaxis_title=f'Volume ({unit})', zaxis_title=z_title,
-                   bgcolor=_CHART_BG,
+                   bgcolor='#FAFCFB',
                    xaxis=dict(gridcolor=_GRID),
                    yaxis=dict(gridcolor=_GRID),
                    zaxis=dict(gridcolor=_GRID)),
-        template='plotly_dark', paper_bgcolor=_PAPER_BG,
+        template='plotly_white', paper_bgcolor=_PAPER_BG,
         font=dict(color=_FONT_CLR, family='Inter, sans-serif'),
         height=620, margin=dict(t=50, b=30, l=30, r=30))
     return fig

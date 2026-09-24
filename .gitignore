@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
-.streamlit/
+.streamlit/*
+!.streamlit/config.toml
 test_ml.py
 .DS_Store
