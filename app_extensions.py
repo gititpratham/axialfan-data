@@ -38,12 +38,65 @@ Only three edits to the existing app.py are needed:
 
 from __future__ import annotations
 
+import base64
+import functools
 import json
 import os
 
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+# ── Company Logo & Header Utilities ───────────────────────────
+@functools.lru_cache(maxsize=1)
+def get_logo_base64() -> str:
+    logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'logo.png')
+    if os.path.exists(logo_path):
+        try:
+            with open(logo_path, 'rb') as f:
+                return base64.b64encode(f.read()).decode('utf-8')
+        except Exception:
+            return ""
+    return ""
+
+def render_company_header_html(
+    title: str,
+    subtitle: str = "ML-Powered Performance Prediction & Engineering Visualisation Tool",
+    badge: str = "MAXIM AIR • FAN ENGINEERING SUITE",
+) -> str:
+    b64 = get_logo_base64()
+    img_tag = (
+        f'<img src="data:image/png;base64,{b64}" class="companyhead-logo-img" alt="Maxim Air Logo" />'
+        if b64 else '<div class="companyhead-logo-fallback">🌀</div>'
+    )
+    return f"""
+    <div class="companyhead-banner">
+      <div class="companyhead-logo-container">
+        {img_tag}
+      </div>
+      <div class="companyhead-content">
+        <div class="companyhead-badge">{badge}</div>
+        <h1 class="companyhead-title">{title}</h1>
+        <p class="companyhead-subtitle">{subtitle}</p>
+      </div>
+    </div>
+    """
+
+def render_sidebar_brand_html() -> str:
+    b64 = get_logo_base64()
+    img_tag = (
+        f'<img src="data:image/png;base64,{b64}" class="sidebar-brand-logo" alt="Maxim Air Logo" />'
+        if b64 else '<div class="sidebar-brand-logo-fallback">🌀</div>'
+    )
+    return f"""
+    <div class="sidebar-brand-container">
+      {img_tag}
+      <div class="sidebar-brand-text">
+        <div class="sidebar-brand-title">MAXIM AIR</div>
+        <div class="sidebar-brand-subtitle">Axial Fan Engineering Suite</div>
+      </div>
+    </div>
+    """
 
 # ── Unit Conversion Helpers ────────────────────────────────────
 CMH_TO_CFM = 0.588577779
@@ -157,7 +210,112 @@ div[data-testid="stMetricLabel"] > div > p {
     background: #FFFFFF !important;
 }
 
-/* Headers */
+/* Headers & Company Head */
+.companyhead-banner {
+    display: flex;
+    align-items: center;
+    gap: 1.4rem;
+    background: linear-gradient(135deg, #09201E 0%, #00564D 50%, #00897B 100%);
+    padding: 1.3rem 1.8rem;
+    border-radius: 14px;
+    margin-bottom: 1.4rem;
+    border: 1px solid rgba(0, 137, 123, 0.3);
+    box-shadow: 0 6px 24px rgba(0, 137, 123, 0.18);
+}
+.companyhead-logo-container {
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 6px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+.companyhead-logo-img {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    display: block;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
+}
+.companyhead-logo-fallback {
+    font-size: 2.2rem;
+    line-height: 1;
+}
+.companyhead-content {
+    flex-grow: 1;
+    min-width: 0;
+}
+.companyhead-badge {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.16);
+    color: #E0F2F1;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.companyhead-title {
+    color: #FFFFFF !important;
+    font-size: 1.65rem !important;
+    font-weight: 800 !important;
+    margin: 0 !important;
+    letter-spacing: -0.5px !important;
+    line-height: 1.2 !important;
+}
+.companyhead-subtitle {
+    color: rgba(255, 255, 255, 0.88) !important;
+    font-size: 0.88rem !important;
+    margin: 0.25rem 0 0 0 !important;
+    line-height: 1.4 !important;
+}
+
+/* Sidebar Brand Header */
+.sidebar-brand-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0.4rem 0.2rem 0.6rem 0.2rem;
+    margin-bottom: 0.2rem;
+}
+.sidebar-brand-logo {
+    width: 46px;
+    height: 46px;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: drop-shadow(0 2px 6px rgba(0, 137, 123, 0.3));
+}
+.sidebar-brand-logo-fallback {
+    font-size: 1.8rem;
+}
+.sidebar-brand-text {
+    display: flex;
+    flex-direction: column;
+}
+.sidebar-brand-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #0F2A28;
+    letter-spacing: 0.6px;
+    line-height: 1.1;
+}
+.sidebar-brand-subtitle {
+    font-size: 0.70rem;
+    font-weight: 600;
+    color: #00897B;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-top: 2px;
+}
+
 .ext-header {
     background: linear-gradient(135deg, #0F2A28 0%, #00897B 100%);
     padding: 1.5rem 2rem;
@@ -223,7 +381,7 @@ def render_sidebar_mode_selector() -> str:
     Renders the top of the sidebar: app logo + mode radio.
     Returns the selected mode string.
     """
-    st.markdown("## 🌀 Axial Fan Tool")
+    st.markdown(render_sidebar_brand_html(), unsafe_allow_html=True)
     st.markdown("---")
     st.radio("**Flow Volume Unit**", ["CMH", "CFM"], index=0, horizontal=True, key="flow_unit")
     st.markdown("---")
@@ -287,12 +445,14 @@ def _page_db_manager() -> None:
         get_fan_constants, create_fan, delete_fan, RAW_COLS,
     )
 
-    st.markdown("""
-    <div class="ext-header">
-      <h2>🗄️ Fan Database Manager</h2>
-      <p>Add, edit, and manage the cumulative fan test database. Changes automatically
-         update instantly.</p>
-    </div>""", unsafe_allow_html=True)
+    st.markdown(
+        render_company_header_html(
+            title="Fan Database Manager",
+            subtitle="Add, edit, and manage the cumulative fan test database. Changes update instantly across all tools.",
+            badge="MAXIM AIR • DATABASE OPERATIONS",
+        ),
+        unsafe_allow_html=True,
+    )
 
     # ── top-level action selector ─────────────────────────────────────────────
     action = st.radio(
@@ -676,13 +836,14 @@ def _page_cross_fan_selection() -> None:
     """, unsafe_allow_html=True)
 
     # ── Hero Header ───────────────────────────────────────────────────────────
-    st.markdown("""
-    <div class="cfs-hero">
-      <div>
-        <h2>🌐 Cross-Fan Selection</h2>
-        <p>Evaluate fans across motor speeds to find the optimal selection, with optional BKW override.</p>
-      </div>
-    </div>""", unsafe_allow_html=True)
+    st.markdown(
+        render_company_header_html(
+            title="Cross-Fan Selection Engine",
+            subtitle="Evaluate fans across motor speeds to find the optimal selection with motor recommendations.",
+            badge="MAXIM AIR • CROSS-FAN SELECTION",
+        ),
+        unsafe_allow_html=True,
+    )
 
     fans = list_fans()
     if not fans:

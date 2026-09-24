@@ -8,6 +8,7 @@ A Streamlit dashboard with four tabs:
   4. Fan Selection
 """
 
+import os
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -31,7 +32,12 @@ from plots import (
 )
 
 # ── Extension layer ────────────────────────────────────────────
-from app_extensions import render_sidebar_mode_selector, render_extension_page
+from app_extensions import (
+    render_sidebar_mode_selector,
+    render_extension_page,
+    render_company_header_html,
+    get_logo_base64,
+)
 from fan_db import init_db, list_fans as db_list_fans, get_raw_df, get_fan_constants
 
 # ── Unit Conversion Helpers ────────────────────────────────────
@@ -62,9 +68,10 @@ def _fan_id_from_name(display_name: str) -> str:
     )
 
 # ── Page config ────────────────────────────────────────────────
+_logo_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'logo.png')
 st.set_page_config(
-    page_title='Tube Axial Fan Performance Tool',
-    page_icon='🌀',
+    page_title='Maxim Air — Tube Axial Fan Performance Tool',
+    page_icon=_logo_file if os.path.exists(_logo_file) else '🌀',
     layout='wide',
     initial_sidebar_state='expanded',
 )
@@ -196,7 +203,74 @@ div[data-testid="stExpander"] summary span {
     font-weight: 600 !important;
 }
 
-/* Main Headers */
+/* Main Headers & Company Head */
+.companyhead-banner {
+    display: flex;
+    align-items: center;
+    gap: 1.4rem;
+    background: linear-gradient(135deg, #09201E 0%, #00564D 50%, #00897B 100%);
+    padding: 1.3rem 1.8rem;
+    border-radius: 14px;
+    margin-bottom: 1.4rem;
+    border: 1px solid rgba(0, 137, 123, 0.3);
+    box-shadow: 0 6px 24px rgba(0, 137, 123, 0.18);
+}
+.companyhead-logo-container {
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 6px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+.companyhead-logo-img {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    display: block;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
+}
+.companyhead-logo-fallback {
+    font-size: 2.2rem;
+    line-height: 1;
+}
+.companyhead-content {
+    flex-grow: 1;
+    min-width: 0;
+}
+.companyhead-badge {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.16);
+    color: #E0F2F1;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.companyhead-title {
+    color: #FFFFFF !important;
+    font-size: 1.65rem !important;
+    font-weight: 800 !important;
+    margin: 0 !important;
+    letter-spacing: -0.5px !important;
+    line-height: 1.2 !important;
+}
+.companyhead-subtitle {
+    color: rgba(255, 255, 255, 0.88) !important;
+    font-size: 0.88rem !important;
+    margin: 0.25rem 0 0 0 !important;
+    line-height: 1.4 !important;
+}
+
 .main-header {
     background: linear-gradient(135deg, #0F2A28 0%, #00897B 100%);
     padding: 1.8rem 2.2rem;
@@ -352,11 +426,14 @@ df = _compute(selected_fan, ct, df_json)
 # ────────────────────────────────────────────────────────────────
 # HEADER
 # ────────────────────────────────────────────────────────────────
-st.markdown(f"""
-<div class="main-header">
-  <h1>🌀 {selected_display_name} — Performance Analysis</h1>
-  <p>ML-Powered Performance Prediction &amp; Engineering Visualisation Tool</p>
-</div>""", unsafe_allow_html=True)
+st.markdown(
+    render_company_header_html(
+        title=f"{selected_display_name} — Performance Analysis",
+        subtitle="Physics-Based Performance Modeling, Interpolation & Visualisation Tool",
+        badge="MAXIM AIR • FAN PERFORMANCE ANALYSIS",
+    ),
+    unsafe_allow_html=True,
+)
 
 # key metrics banner
 c1, c2, c3, c4, c5 = st.columns(5)
