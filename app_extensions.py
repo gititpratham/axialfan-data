@@ -92,7 +92,7 @@ def render_sidebar_brand_html() -> str:
     <div class="sidebar-brand-container">
       {img_tag}
       <div class="sidebar-brand-text">
-        <div class="sidebar-brand-title">MAXIM AIR</div>
+        <div class="sidebar-brand-title">MAXIMAIR</div>
         <div class="sidebar-brand-subtitle">Axial Fan Engineering Suite</div>
       </div>
     </div>
