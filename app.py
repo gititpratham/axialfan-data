@@ -70,7 +70,7 @@ def _fan_id_from_name(display_name: str) -> str:
 # ── Page config ────────────────────────────────────────────────
 _logo_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'logo.png')
 st.set_page_config(
-    page_title='Maxim Air — Tube Axial Fan Performance Tool',
+    page_title='MAXIMAIR — Tube Axial Fan Performance Tool',
     page_icon=_logo_file if os.path.exists(_logo_file) else '🌀',
     layout='wide',
     initial_sidebar_state='expanded',
@@ -430,7 +430,7 @@ st.markdown(
     render_company_header_html(
         title=f"{selected_display_name} — Performance Analysis",
         subtitle="Physics-Based Performance Modeling, Interpolation & Visualisation Tool",
-        badge="MAXIM AIR • FAN PERFORMANCE ANALYSIS",
+        badge="MAXIMAIR • FAN PERFORMANCE ANALYSIS",
     ),
     unsafe_allow_html=True,
 )

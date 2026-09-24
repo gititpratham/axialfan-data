@@ -62,11 +62,11 @@ def get_logo_base64() -> str:
 def render_company_header_html(
     title: str,
     subtitle: str = "ML-Powered Performance Prediction & Engineering Visualisation Tool",
-    badge: str = "MAXIM AIR • FAN ENGINEERING SUITE",
+    badge: str = "MAXIMAIR • FAN ENGINEERING SUITE",
 ) -> str:
     b64 = get_logo_base64()
     img_tag = (
-        f'<img src="data:image/png;base64,{b64}" class="companyhead-logo-img" alt="Maxim Air Logo" />'
+        f'<img src="data:image/png;base64,{b64}" class="companyhead-logo-img" alt="MAXIMAIR Logo" />'
         if b64 else '<div class="companyhead-logo-fallback">🌀</div>'
     )
     return f"""
@@ -85,7 +85,7 @@ def render_company_header_html(
 def render_sidebar_brand_html() -> str:
     b64 = get_logo_base64()
     img_tag = (
-        f'<img src="data:image/png;base64,{b64}" class="sidebar-brand-logo" alt="Maxim Air Logo" />'
+        f'<img src="data:image/png;base64,{b64}" class="sidebar-brand-logo" alt="MAXIMAIR Logo" />'
         if b64 else '<div class="sidebar-brand-logo-fallback">🌀</div>'
     )
     return f"""
@@ -449,7 +449,7 @@ def _page_db_manager() -> None:
         render_company_header_html(
             title="Fan Database Manager",
             subtitle="Add, edit, and manage the cumulative fan test database. Changes update instantly across all tools.",
-            badge="MAXIM AIR • DATABASE OPERATIONS",
+            badge="MAXIMAIR • DATABASE OPERATIONS",
         ),
         unsafe_allow_html=True,
     )
@@ -840,7 +840,7 @@ def _page_cross_fan_selection() -> None:
         render_company_header_html(
             title="Cross-Fan Selection Engine",
             subtitle="Evaluate fans across motor speeds to find the optimal selection with motor recommendations.",
-            badge="MAXIM AIR • CROSS-FAN SELECTION",
+            badge="MAXIMAIR • CROSS-FAN SELECTION",
         ),
         unsafe_allow_html=True,
     )
