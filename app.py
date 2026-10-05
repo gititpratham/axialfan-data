@@ -648,7 +648,7 @@ with tab4:
             'Efficiency is speed-independent. Cards ranked best-to-worst match.</div>',
             unsafe_allow_html=True)
 
-        mcols = st.columns(3)
+        mcols = st.columns(max(len(motor_recs), 1))
 
         # ── Exact quantities from required operating point (no ML) ────
         _sel_area    = np.pi / 4 * constants["duct_dia_m"]**2

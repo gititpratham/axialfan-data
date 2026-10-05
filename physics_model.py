@@ -133,6 +133,7 @@ def select_motor_rating(bkw: float, poles: int) -> dict:
     res['rating_str'] = f"{kw_fmt} kW / {res['poles']} Pole"
     res['rating_short'] = f"{kw_fmt} kW / {res['poles']}P"
     res['full_str'] = f"{kw_fmt} kW / {res['poles']} Pole (Frame {res['frame']}, {res['hp']:.2f} HP)"
+
     return res
 
 TARGET_COLS = ['SP', 'FSP', 'FTP', 'BKW', 'Static_Eff', 'Total_Eff']
@@ -279,10 +280,38 @@ def find_motor_recommendation(
     performance and find which motor + blade-angle combination best
     delivers the required CMH and static pressure.
     """
+    # Enforce: if fan has data for only 4-pole or 6-pole or 2-pole, do not allow other motor poles!
+    constants = df.attrs.get('constants', {})
+    fan_name = constants.get('fan_name', '')
+    name_check = f"{fan_name}".lower()
+    df_pole = constants.get('poles')
+    if '4-pole' in name_check or '4 pole' in name_check or '4p' in name_check:
+        df_pole = 4
+    elif '6-pole' in name_check or '6 pole' in name_check or '6p' in name_check:
+        df_pole = 6
+    elif '2-pole' in name_check or '2 pole' in name_check or '2p' in name_check:
+        df_pole = 2
+
+    if df_pole is not None:
+        if allowed_poles and df_pole not in allowed_poles:
+            return []
+        effective_allowed_poles = [df_pole]
+    else:
+        effective_allowed_poles = allowed_poles
+
+    # Compute fan outlet area for outlet velocity
+    outlet_area = df.attrs.get('outlet_area')
+    if not outlet_area or outlet_area <= 0:
+        duct_dia_m = constants.get('duct_dia_m')
+        if duct_dia_m and duct_dia_m > 0:
+            outlet_area = np.pi / 4.0 * (duct_dia_m ** 2)
+        else:
+            outlet_area = 1.0
+
     rows = []
 
     for motor in STANDARD_MOTORS:
-        if allowed_poles and motor['poles'] not in allowed_poles:
+        if effective_allowed_poles and motor['poles'] not in effective_allowed_poles:
             continue
         n_ratio = motor['rpm'] / design_rpm
 
@@ -296,8 +325,12 @@ def find_motor_recommendation(
         if best_row is None:
             continue
 
+        q_actual = best_row['Q_CMH'] * n_ratio
+        v_out_mps = q_actual / (outlet_area * 3600.0) if outlet_area > 0 else 0.0
+
         scaled = {
-            'Q_CMH':      best_row['Q_CMH']  * n_ratio,
+            'Q_CMH':      q_actual,
+            'V_out':      round(v_out_mps, 2),
             'FSP':        best_row['FSP']     * (n_ratio ** 2),
             'FTP':        best_row['FTP']     * (n_ratio ** 2),
             'BKW':        best_row['BKW']     * (n_ratio ** 3),
@@ -317,6 +350,8 @@ def find_motor_recommendation(
             'poles':        motor['poles'],
             'angle':        round(angle, 1),
             'scaled':       scaled,
+            'v_out_mps':    round(v_out_mps, 2),
+            'outlet_area':  outlet_area,
             'deviation':    dev,
             'n_ratio':      n_ratio,
             'motor_rating': m_rating,
@@ -339,6 +374,8 @@ def cross_fan_recommend(
 ) -> list[dict]:
     """
     For each fan in *fan_ids* run motor recommendation and return a unified ranked list.
+    Enforces dedicated motor pole constraints: fans with 4-pole or 6-pole data are
+    never evaluated with or suggested for a different motor pole.
     """
     from fan_db import list_fans, get_fan_constants
 
@@ -352,19 +389,30 @@ def cross_fan_recommend(
         df = df_computed_map[fan_id]
         constants = get_fan_constants(fan_id)
         design_rpm = constants.get("design_speed_rpm", 1460)
+        display = fan_meta.get(fan_id, {}).get("display_name", fan_id)
+
+        # Detect if fan has a dedicated pole rating (from name or constants)
+        fan_name_lower = f"{display} {fan_id}".lower()
         fan_poles = constants.get("poles")
-        if fan_poles is None:
+        if "4-pole" in fan_name_lower or "4 pole" in fan_name_lower or "4p" in fan_name_lower:
+            fan_poles = 4
+        elif "6-pole" in fan_name_lower or "6 pole" in fan_name_lower or "6p" in fan_name_lower:
+            fan_poles = 6
+        elif "2-pole" in fan_name_lower or "2 pole" in fan_name_lower or "2p" in fan_name_lower:
+            fan_poles = 2
+        elif fan_poles is None:
             fan_poles = 6 if design_rpm <= 1100 else (4 if design_rpm <= 1800 else 2)
 
         # Skip fans whose native pole rating does not match allowed_poles requirement
         if allowed_poles and fan_poles not in allowed_poles:
             continue
 
-        display = fan_meta.get(fan_id, {}).get("display_name", fan_id)
+        # CRITICAL: Fans with 4-pole or 6-pole data can ONLY use their matching motor pole!
+        poles_to_eval = [fan_poles] if fan_poles else allowed_poles
 
         try:
             recs = find_motor_recommendation(
-                df, required_cmh, required_sp, design_rpm, allowed_poles
+                df, required_cmh, required_sp, design_rpm, poles_to_eval
             )
         except Exception:
             continue
@@ -379,11 +427,14 @@ def cross_fan_recommend(
                 "motor": rec["motor"],
                 "angle": rec["angle"],
                 "scaled": rec["scaled"],
+                "v_out_mps": rec.get("v_out_mps", rec["scaled"].get("V_out", 0.0)),
+                "outlet_area": rec.get("outlet_area", 1.0),
+                "duct_dia_m": constants.get("duct_dia_m", 0.0),
                 "deviation": rec["deviation"],
                 "n_ratio": rec["n_ratio"],
                 "motor_rating": rec["motor_rating"],
                 "model_name": "Polynomial Physics Interpolation",
-                "avg_r2_cv": 1.0, # Perfect fit
+                "avg_r2_cv": 1.0,
             })
 
     all_rows.sort(key=lambda r: r["deviation"])

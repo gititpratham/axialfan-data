@@ -734,7 +734,7 @@ def _page_cross_fan_selection() -> None:
     }
     .cfs-best-card .specs-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
         gap: 0.8rem;
         margin-top: 1rem;
     }
@@ -754,6 +754,65 @@ def _page_cross_fan_selection() -> None:
     .cfs-best-card .spec-item .spec-label {
         font-size: 0.7rem;
         color: #537775;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 0.2rem;
+        font-weight: 600;
+    }
+
+    .cfs-economy-card {
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+        border: 2px solid #93C5FD;
+        border-radius: 14px;
+        padding: 1.5rem 1.8rem;
+        margin: 1.2rem 0;
+        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
+    }
+    .cfs-economy-card .econ-badge {
+        display: inline-block;
+        background: #2563EB;
+        color: #FFFFFF;
+        font-size: 0.75rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        margin-bottom: 0.6rem;
+    }
+    .cfs-economy-card .fan-name {
+        font-size: 1.7rem;
+        font-weight: 800;
+        color: #1E3A8A;
+        margin: 0.3rem 0;
+    }
+    .cfs-economy-card .fan-config {
+        font-size: 0.95rem;
+        color: #1E40AF;
+        margin-bottom: 0.8rem;
+    }
+    .cfs-economy-card .specs-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+        gap: 0.8rem;
+        margin-top: 1rem;
+    }
+    .cfs-economy-card .spec-item {
+        text-align: center;
+        padding: 0.65rem 0.5rem;
+        background: #FFFFFF;
+        border: 1px solid rgba(37, 99, 235, 0.2);
+        border-radius: 10px;
+        box-shadow: 0 1px 4px rgba(30, 58, 138, 0.04);
+    }
+    .cfs-economy-card .spec-item .spec-val {
+        font-size: 1.2rem;
+        font-weight: 800;
+        color: #2563EB;
+    }
+    .cfs-economy-card .spec-item .spec-label {
+        font-size: 0.7rem;
+        color: #4B5563;
         text-transform: uppercase;
         letter-spacing: 0.5px;
         margin-top: 0.2rem;
@@ -852,18 +911,25 @@ def _page_cross_fan_selection() -> None:
 
     eligible = fans
     all_names = [f["display_name"] for f in eligible]
+    fan_name_to_id = {f["display_name"]: f["fan_id"] for f in eligible}
+
+    fan_options = ["⭐ All Fans (Compare All)"] + all_names
 
     # ── Compact Fan Selection ─────────────────────────────────────────────────
-    chosen_names = st.multiselect(
-        "🌀 Select Fans to Compare (leave empty for all)",
-        all_names, default=all_names, key="cfs_fans",
-        help="Choose which fan models to include in the search",
+    chosen_selection = st.multiselect(
+        "🌀 Select Fans to Compare",
+        options=fan_options,
+        default=["⭐ All Fans (Compare All)"],
+        key="cfs_fans",
+        help="Select 'All Fans' to evaluate every fan in the database, or pick specific models",
     )
-    if not chosen_names:
-        chosen_names = all_names
 
-    fan_name_to_id = {f["display_name"]: f["fan_id"] for f in eligible}
-    chosen_ids = [fan_name_to_id[n] for n in chosen_names]
+    if not chosen_selection or "⭐ All Fans (Compare All)" in chosen_selection:
+        chosen_ids = [f["fan_id"] for f in eligible]
+        chosen_names = all_names
+    else:
+        chosen_names = [n for n in chosen_selection if n in fan_name_to_id]
+        chosen_ids = [fan_name_to_id[n] for n in chosen_names]
 
     # ── System Requirements & Inline BKW Override ─────────────────────────────
     if "cfs_bkw_active" not in st.session_state:
@@ -893,8 +959,11 @@ def _page_cross_fan_selection() -> None:
     )
 
     allowed_poles = rc3.multiselect(
-        "Motor Poles", [2, 4, 6], default=[6], key="cfs_poles",
+        "Motor Poles", [2, 4, 6], default=[2, 4, 6], key="cfs_poles",
+        help="Filter by motor poles. Fans with dedicated pole test data only use their matching motor.",
     )
+    if not allowed_poles:
+        allowed_poles = [2, 4, 6]
 
     # Inline BKW Override Field
     bkw_active = st.session_state.cfs_bkw_active
@@ -1017,84 +1086,155 @@ def _page_cross_fan_selection() -> None:
     # ── Results Section ───────────────────────────────────────────────────────
     st.markdown('<hr class="cfs-divider">', unsafe_allow_html=True)
 
-    # ── 🏆 Best Match — Hero Card ─────────────────────────────────────────────
+    # ── 🏆 Best Aerodynamic Match & 💰 Lowest Cost Motor Option ────────────────
     best = recommendations[0]
     best_sc = best['scaled']
     best_m_rat = best['motor_rating']
-    st.markdown(f"""
-    <div class="cfs-best-card">
-      <div class="best-badge">🏆 Best Match</div>
-      <div class="fan-name">{best['fan_name']}{bkw_tag}</div>
-      <div class="fan-config">
-        {best['motor_label']} &nbsp;·&nbsp; Blade {best['angle']}°
-        &nbsp;·&nbsp; Motor Rating: <b>{best_m_rat['rating_str']}</b> (BKW+20%)
-        &nbsp;·&nbsp; Δ {best['deviation']:.1%} from target
-      </div>
-      <div class="specs-grid">
-        <div class="spec-item">
-          <div class="spec-val">{convert_flow_out(best_sc['Q_CMH']):.0f}</div>
-          <div class="spec-label">{unit}</div>
-        </div>
-        <div class="spec-item">
-          <div class="spec-val">{best_sc['FSP']:.1f}</div>
-          <div class="spec-label">FSP mm WG</div>
-        </div>
-        <div class="spec-item">
-          <div class="spec-val">{best_sc['FTP']:.1f}</div>
-          <div class="spec-label">FTP mm WG</div>
-        </div>
-        <div class="spec-item">
-          <div class="spec-val">{best_sc['BKW']:.3f}</div>
-          <div class="spec-label">BKW kW</div>
-        </div>
-        <div class="spec-item">
-          <div class="spec-val" style="color:#00897B;font-weight:800">{best_m_rat['rating_short']}</div>
-          <div class="spec-label">Motor Rating</div>
-        </div>
-        <div class="spec-item">
-          <div class="spec-val">{best_sc['Static_Eff']:.1f}%</div>
-          <div class="spec-label">η Static</div>
-        </div>
-        <div class="spec-item">
-          <div class="spec-val">{best_sc['Total_Eff']:.1f}%</div>
-          <div class="spec-label">η Total</div>
-        </div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    best_v_out = best.get('v_out_mps', best_sc.get('V_out', 0.0))
 
-    # ── Runner-up cards (ranks 2 & 3) ─────────────────────────────────────────
-    runners = recommendations[1:4]
-    if runners:
+    # Acceptable deviation cutoff for economy motor selection
+    # Engineering standard: candidates with <= 30% deviation are acceptable matches
+    acceptable_dev_cutoff = 0.30
+    acceptable_candidates = [
+        r for r in recommendations if r['deviation'] <= acceptable_dev_cutoff
+    ]
+    if not acceptable_candidates:
+        acceptable_candidates = recommendations[:min(5, len(recommendations))]
+
+    # Find lowest motor rating option within acceptable aerodynamic deviation
+    # If motor rating is same for acceptable fans, prefer smaller size / smaller BKW
+    def _rec_motor_rating_key(r):
+        m = r['motor_rating']
+        kw = m.get('kw', 9999.0)
+        fan_size = r.get('duct_dia_m') or r.get('outlet_area', 1.0)
+        bkw = r['scaled'].get('BKW', 9999.0)
+        # 1) Lowest motor rating (kW)
+        # 2) Smaller fan size (duct diameter / area)
+        # 3) Smaller BKW
+        # 4) Lowest aerodynamic deviation
+        return (kw, fan_size, bkw, r['deviation'])
+
+    sorted_by_motor_rating = sorted(acceptable_candidates, key=_rec_motor_rating_key)
+    econ = sorted_by_motor_rating[0]
+    econ_sc = econ['scaled']
+    econ_m_rat = econ['motor_rating']
+    econ_v_out = econ.get('v_out_mps', econ_sc.get('V_out', 0.0))
+
+    col_best, col_econ = st.columns(2)
+
+    with col_best:
+        st.markdown(f"""
+        <div class="cfs-best-card">
+          <div class="best-badge">🏆 Best Aerodynamic Match</div>
+          <div class="fan-name">{best['fan_name']}{bkw_tag}</div>
+          <div class="fan-config">
+            {best['motor_label']} &nbsp;·&nbsp; Blade {best['angle']}°
+            &nbsp;·&nbsp; Motor: <b>{best_m_rat['rating_str']}</b>
+            &nbsp;·&nbsp; Δ {best['deviation']:.1%} from target
+          </div>
+          <div class="specs-grid">
+            <div class="spec-item">
+              <div class="spec-val">{best_v_out:.2f} <span style="font-size:0.75rem">m/s</span></div>
+              <div class="spec-label">Outlet Velocity</div>
+            </div>
+            <div class="spec-item">
+              <div class="spec-val">{best_sc['BKW']:.3f}</div>
+              <div class="spec-label">BKW kW</div>
+            </div>
+            <div class="spec-item">
+              <div class="spec-val" style="color:#00897B;font-weight:800">{best_m_rat['rating_short']}</div>
+              <div class="spec-label">Motor Rating</div>
+            </div>
+            <div class="spec-item">
+              <div class="spec-val">{best_sc['Static_Eff']:.1f}%</div>
+              <div class="spec-label">η Static</div>
+            </div>
+            <div class="spec-item">
+              <div class="spec-val">{best_sc['Total_Eff']:.1f}%</div>
+              <div class="spec-label">η Total</div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col_econ:
+        econ_badge_text = "Lowest Motor Rating Option"
+
+        st.markdown(f"""
+        <div class="cfs-economy-card">
+          <div class="econ-badge">{econ_badge_text}</div>
+          <div class="fan-name">{econ['fan_name']}{bkw_tag}</div>
+          <div class="fan-config">
+            {econ['motor_label']} &nbsp;·&nbsp; Blade {econ['angle']}°
+            &nbsp;·&nbsp; Motor: <b>{econ_m_rat['rating_str']}</b>
+            &nbsp;·&nbsp; Δ {econ['deviation']:.1%} (Acceptable)
+          </div>
+          <div class="specs-grid">
+            <div class="spec-item">
+              <div class="spec-val">{econ_v_out:.2f} <span style="font-size:0.75rem">m/s</span></div>
+              <div class="spec-label">Outlet Velocity</div>
+            </div>
+            <div class="spec-item">
+              <div class="spec-val">{econ_sc['BKW']:.3f}</div>
+              <div class="spec-label">BKW kW</div>
+            </div>
+            <div class="spec-item">
+              <div class="spec-val" style="color:#2563EB;font-weight:800">{econ_m_rat['rating_short']}</div>
+              <div class="spec-label">Motor Rating</div>
+            </div>
+            <div class="spec-item">
+              <div class="spec-val">{econ_sc['Static_Eff']:.1f}%</div>
+              <div class="spec-label">η Static</div>
+            </div>
+            <div class="spec-item">
+              <div class="spec-val">{econ_sc['Total_Eff']:.1f}%</div>
+              <div class="spec-label">η Total</div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── Runner-up cards ───────────────────────────────────────────────────────
+    # Exclude the exact best and econ options from runner-up display
+    candidate_runners = [
+        r for r in recommendations 
+        if not (r['fan_id'] == best['fan_id'] and r['angle'] == best['angle'] and r['motor_rpm'] == best['motor_rpm'])
+        and not (r['fan_id'] == econ['fan_id'] and r['angle'] == econ['angle'] and r['motor_rpm'] == econ['motor_rpm'])
+    ]
+    if not candidate_runners:
+        candidate_runners = recommendations[1:4]
+    else:
+        candidate_runners = candidate_runners[:3]
+
+    if candidate_runners:
         st.markdown(
             '<div class="cfs-section-title"><span class="icon">🥈</span> Runner-Up Options</div>',
             unsafe_allow_html=True,
         )
-        cols = st.columns(len(runners))
-        for idx, rec in enumerate(runners):
+        cols = st.columns(len(candidate_runners))
+        for idx, rec in enumerate(candidate_runners):
             sc = rec['scaled']
             m_rat = rec['motor_rating']
             dev = rec['deviation']
             dev_color = '#059669' if dev < 0.2 else ('#D97706' if dev < 0.5 else '#DC2626')
             match_lbl = 'Excellent' if dev < 0.2 else ('Good' if dev < 0.4 else ('Fair' if dev < 0.7 else 'Poor'))
+            v_out = rec.get('v_out_mps', sc.get('V_out', 0.0))
 
             with cols[idx]:
                 st.markdown(f"""
                 <div class="cfs-runner-card">
-                  <div class="rank-badge">#{idx + 2}</div>
+                  <div class="rank-badge">Option #{idx + 2}</div>
                   <div class="fan-name">{rec['fan_name']}</div>
                   <div class="motor-info">{rec['motor_label']} · {rec['angle']}°</div>
                   <table>
-                    <tr><td>{unit}</td><td>{convert_flow_out(sc['Q_CMH']):.0f}</td></tr>
-                    <tr><td>FSP</td><td>{sc['FSP']:.1f} mm WG</td></tr>
-                    <tr><td>FTP</td><td>{sc['FTP']:.1f} mm WG</td></tr>
-                    <tr><td>BKW</td><td>{sc['BKW']:.3f} kW</td></tr>
+                    <tr><td>Outlet Velocity</td><td><b>{v_out:.2f} m/s</b></td></tr>
+                    <tr><td>BKW</td><td><b>{sc['BKW']:.3f} kW</b></td></tr>
                     <tr><td>Motor Rating</td><td style="color:#00897B"><b>{m_rat['rating_str']}</b></td></tr>
-                    <tr><td>η Static</td><td>{sc['Static_Eff']:.1f}%</td></tr>
-                    <tr><td>η Total</td><td>{sc['Total_Eff']:.1f}%</td></tr>
+                    <tr><td>η Static</td><td><b>{sc['Static_Eff']:.1f}%</b></td></tr>
+                    <tr><td>η Total</td><td><b>{sc['Total_Eff']:.1f}%</b></td></tr>
                   </table>
                   <div class="deviation-bar" style="color:{dev_color}">
-                    {match_lbl} — Δ {dev:.1%}
+                    {match_lbl} — Δ {dev:.1%} from target
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1119,6 +1259,7 @@ def _page_cross_fan_selection() -> None:
             "Motor":            _rec["motor_label"],
             "Motor Rating":     _m_rat["rating_str"],
             "Angle (°)":        _rec["angle"],
+            "Outlet V (m/s)":   round(_rec.get("v_out_mps", _sc.get("V_out", 0.0)), 2),
             f"Volume ({unit})": round(convert_flow_out(_sc["Q_CMH"])),
             f"Δ {unit}":        f"{convert_flow_out(_sc['Q_CMH']) - convert_flow_out(req_cmh):+.0f}",
             "FSP (mm WG)":      round(_sc["FSP"], 2),
