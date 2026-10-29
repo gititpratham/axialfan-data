@@ -647,6 +647,54 @@ def _page_db_manager() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Navigation Helper — Cross-Fan to Fan Analysis
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _navigate_to_fan_analysis(rec: dict, req_cmh: float, req_sp: float) -> None:
+    """
+    Switches app to '⚙️  Fan Analysis', selects the requested fan,
+    and stores cross-fan duty point calculation data into session state
+    so that Fan Selection tab opens with pre-computed results.
+    """
+    from fan_db import list_fans
+    db_fans = list_fans()
+    fan_display_to_id = {f["display_name"]: f["fan_id"] for f in db_fans}
+
+    target_name = rec.get("fan_name", "")
+    target_id = rec.get("fan_id", "")
+    if target_name not in fan_display_to_id:
+        for dname, fid in fan_display_to_id.items():
+            if fid == target_id:
+                target_name = dname
+                break
+
+    st.session_state["app_mode"] = "⚙️  Fan Analysis"
+    st.session_state["fan_select"] = target_name
+    st.session_state["nav_from_cfs"] = True
+    st.session_state["cfs_has_run"] = True
+    st.session_state["cfs_nav_fan_id"] = target_id
+    st.session_state["cfs_nav_fan_name"] = target_name
+    st.session_state["cfs_nav_cmh"] = float(req_cmh)
+    st.session_state["cfs_nav_sp"] = float(req_sp)
+    st.session_state["cfs_nav_angle"] = float(rec.get("angle", 32.5))
+    st.session_state["cfs_nav_motor_rpm"] = rec.get("motor_rpm", 1440)
+    st.session_state["cfs_nav_motor_label"] = rec.get("motor_label", "")
+    st.session_state["cfs_nav_motor_rating"] = rec.get("motor_rating", {})
+    st.session_state["cfs_nav_scaled"] = rec.get("scaled", {})
+    st.session_state["cfs_nav_deviation"] = float(rec.get("deviation", 0.0))
+    st.session_state["cfs_nav_v_out"] = float(rec.get("v_out_mps", rec.get("scaled", {}).get("V_out", 0.0)))
+
+    # Set widget session keys for Tab 3 and Tab 4 in Fan Analysis
+    st.session_state["ts_req_cmh"] = int(round(req_cmh))
+    st.session_state["ts_req_cfm"] = int(round(req_cmh * CMH_TO_CFM))
+    st.session_state["ts_req_sp"] = float(req_sp)
+    if target_id:
+        st.session_state[f"custom_angle_{target_id}"] = float(rec.get("angle", 32.5))
+
+    st.rerun()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # PAGE 3 — Cross-Fan Selection
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -1012,7 +1060,10 @@ def _page_cross_fan_selection() -> None:
         type="primary", use_container_width=True, key="cfs_run",
     )
 
-    if not run_btn:
+    if run_btn:
+        st.session_state["cfs_has_run"] = True
+
+    if not run_btn and not st.session_state.get("cfs_has_run", False):
         # Show a subtle prompt
         st.markdown(
             '<div style="text-align:center;color:#3B5957;'
@@ -1156,6 +1207,14 @@ def _page_cross_fan_selection() -> None:
           </div>
         </div>
         """, unsafe_allow_html=True)
+        if st.button(
+            f"🎯 Open {best['fan_name']} in Fan Selection →",
+            key="cfs_btn_best_open",
+            type="primary",
+            use_container_width=True,
+            help=f"Navigate directly to {best['fan_name']} selection page with cross-fan calculations pre-filled",
+        ):
+            _navigate_to_fan_analysis(best, req_cmh, req_sp)
 
     with col_econ:
         econ_badge_text = "Lowest Motor Rating Option"
@@ -1193,6 +1252,14 @@ def _page_cross_fan_selection() -> None:
           </div>
         </div>
         """, unsafe_allow_html=True)
+        if st.button(
+            f"🎯 Open {econ['fan_name']} in Fan Selection →",
+            key="cfs_btn_econ_open",
+            type="primary",
+            use_container_width=True,
+            help=f"Navigate directly to {econ['fan_name']} selection page with cross-fan calculations pre-filled",
+        ):
+            _navigate_to_fan_analysis(econ, req_cmh, req_sp)
 
     # ── Runner-up cards ───────────────────────────────────────────────────────
     # Exclude the exact best and econ options from runner-up display
@@ -1238,6 +1305,13 @@ def _page_cross_fan_selection() -> None:
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
+                if st.button(
+                    f"🎯 Open {rec['fan_name']} →",
+                    key=f"cfs_btn_runner_{idx}_{rec['fan_id']}_{rec['angle']}",
+                    use_container_width=True,
+                    help=f"Navigate directly to {rec['fan_name']} selection page",
+                ):
+                    _navigate_to_fan_analysis(rec, req_cmh, req_sp)
 
     # ── Complete Ranked Table ──────────────────────────────────────────────────
     st.markdown('<hr class="cfs-divider">', unsafe_allow_html=True)
@@ -1287,6 +1361,22 @@ def _page_cross_fan_selection() -> None:
         "text/csv",
         key="cfs_download_ranked",
     )
+
+    st.markdown('<div style="margin-top:0.6rem"></div>', unsafe_allow_html=True)
+    sel_nav_c1, sel_nav_c2 = st.columns([3, 1.2])
+    sel_tbl_idx = sel_nav_c1.selectbox(
+        "Open any fan from table into Fan Selection:",
+        options=list(range(len(recommendations))),
+        format_func=lambda i: f"#{i+1}: {recommendations[i]['fan_name']} · {recommendations[i]['motor_label']} · Blade {recommendations[i]['angle']}° · Motor: {recommendations[i]['motor_rating']['rating_str']} (Δ {recommendations[i]['deviation']:.1%})",
+        key="cfs_table_nav_select",
+    )
+    if sel_nav_c2.button(
+        "🚀 Open in Fan Selection",
+        type="primary",
+        use_container_width=True,
+        key="cfs_btn_open_table_fan",
+    ):
+        _navigate_to_fan_analysis(recommendations[sel_tbl_idx], req_cmh, req_sp)
 
     # ── Nominal Speed Performance Table ───────────────────────────────────────
     st.markdown('<hr class="cfs-divider">', unsafe_allow_html=True)
@@ -1397,6 +1487,13 @@ def _page_cross_fan_selection() -> None:
                 mc2.metric("FSP", f"{sc['FSP']:.1f} mm WG")
                 mc3.metric("BKW", f"{sc['BKW']:.3f} kW")
                 mc4.metric("η Total", f"{sc['Total_Eff']:.1f}%")
+
+                btn_exp_c1, _ = st.columns([1.5, 3])
+                if btn_exp_c1.button(
+                    f"🎯 Open in Fan Selection →",
+                    key=f"cfs_exp_btn_{fid}_{rec['angle']}_{rec['motor_rpm']}",
+                ):
+                    _navigate_to_fan_analysis(rec, req_cmh, req_sp)
 
                 try:
                     pred_df = predict_performance(computed, rec["angle"])

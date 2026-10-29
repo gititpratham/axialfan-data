@@ -444,15 +444,96 @@ c4.metric('📊 Max FSP',      f'{df["FSP"].max():.1f}',           'mm WG')
 c5.metric('🎯 Peak η',       f'{df["Total_Eff"].max():.1f}%',    'Total')
 
 
+# ────────────────────────────────────────────────────────────────
+# CROSS-FAN IMPORT BANNER (if navigated from Cross-Fan Selection)
+# ────────────────────────────────────────────────────────────────
+if st.session_state.get('nav_from_cfs', False):
+    nav_fan_name = st.session_state.get('cfs_nav_fan_name', selected_display_name)
+    nav_cmh = st.session_state.get('cfs_nav_cmh', 0.0)
+    nav_sp = st.session_state.get('cfs_nav_sp', 0.0)
+    nav_angle = st.session_state.get('cfs_nav_angle', 0.0)
+    nav_motor_lbl = st.session_state.get('cfs_nav_motor_label', '')
+    nav_motor_rat = st.session_state.get('cfs_nav_motor_rating', {})
+    nav_sc = st.session_state.get('cfs_nav_scaled', {})
+    nav_dev = st.session_state.get('cfs_nav_deviation', 0.0)
+    nav_v_out = st.session_state.get('cfs_nav_v_out', 0.0)
+    unit_lbl = flow_unit_label()
+
+    banner_col1, banner_col2 = st.columns([4.2, 1.4])
+    with banner_col1:
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #F0FDF4 0%, #E0F2F1 100%);
+                    border: 2px solid #00897B; border-radius: 14px; padding: 1.2rem 1.6rem;
+                    margin: 0.8rem 0 1.2rem 0; box-shadow: 0 4px 16px rgba(0, 137, 123, 0.12);">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem">
+            <span style="font-size:0.75rem; font-weight:800; color:#FFFFFF; background:#00897B;
+                         padding:0.25rem 0.8rem; border-radius:20px; text-transform:uppercase; letter-spacing:1px">
+              ⚡ Imported from Cross-Fan Selection
+            </span>
+            <span style="font-size:0.85rem; font-weight:700; color:#00897B">
+              Match Deviation: {nav_dev:.1%}
+            </span>
+          </div>
+          <div style="font-size:1.25rem; font-weight:800; color:#0F2A28; margin-bottom:0.4rem">
+            {nav_fan_name} &nbsp;·&nbsp; {nav_motor_lbl} &nbsp;·&nbsp; Blade Angle: {nav_angle}°
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:0.75rem; margin-top:0.8rem">
+            <div style="background:rgba(255,255,255,0.9); padding:0.6rem 0.8rem; border-radius:8px; border:1px solid #B2DFDB">
+              <div style="font-size:0.72rem; color:#4A6966; text-transform:uppercase; font-weight:600">Duty Flow</div>
+              <div style="font-size:1.1rem; font-weight:800; color:#0F2A28">{convert_flow_out(nav_cmh):.0f} {unit_lbl}</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.9); padding:0.6rem 0.8rem; border-radius:8px; border:1px solid #B2DFDB">
+              <div style="font-size:0.72rem; color:#4A6966; text-transform:uppercase; font-weight:600">Duty SP</div>
+              <div style="font-size:1.1rem; font-weight:800; color:#0F2A28">{nav_sp:.1f} mm WG</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.9); padding:0.6rem 0.8rem; border-radius:8px; border:1px solid #B2DFDB">
+              <div style="font-size:0.72rem; color:#4A6966; text-transform:uppercase; font-weight:600">Outlet Velocity</div>
+              <div style="font-size:1.1rem; font-weight:800; color:#0F2A28">{nav_v_out:.2f} m/s</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.9); padding:0.6rem 0.8rem; border-radius:8px; border:1px solid #B2DFDB">
+              <div style="font-size:0.72rem; color:#4A6966; text-transform:uppercase; font-weight:600">BKW Power</div>
+              <div style="font-size:1.1rem; font-weight:800; color:#0F2A28">{nav_sc.get('BKW', 0.0):.3f} kW</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.9); padding:0.6rem 0.8rem; border-radius:8px; border:1px solid #B2DFDB">
+              <div style="font-size:0.72rem; color:#4A6966; text-transform:uppercase; font-weight:600">Motor Rating</div>
+              <div style="font-size:1.1rem; font-weight:800; color:#00897B">{nav_motor_rat.get('rating_str', '—')}</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.9); padding:0.6rem 0.8rem; border-radius:8px; border:1px solid #B2DFDB">
+              <div style="font-size:0.72rem; color:#4A6966; text-transform:uppercase; font-weight:600">η Static / Total</div>
+              <div style="font-size:1.1rem; font-weight:800; color:#0F2A28">{nav_sc.get('Static_Eff', 0.0):.1f}% / {nav_sc.get('Total_Eff', 0.0):.1f}%</div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with banner_col2:
+        st.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
+        if st.button("🌐 Return to Cross-Fan", key="btn_back_to_cfs", type="secondary", use_container_width=True):
+            st.session_state["app_mode"] = "🌐  Cross-Fan Selection"
+            st.session_state["nav_from_cfs"] = False
+            st.rerun()
+        if st.button("✕ Dismiss Banner", key="btn_dismiss_cfs", help="Dismiss imported cross-fan duty point banner", use_container_width=True):
+            st.session_state["nav_from_cfs"] = False
+            st.rerun()
+
 # ════════════════════════════════════════════════════════════════
 # TABS
 # ════════════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4 = st.tabs([
-    '📋 Data & Calculations',
-    '📈 Performance Curves',
-    '🔮 Custom Interpolation',
-    '🎯 Fan Selection',
-])
+if st.session_state.get('nav_from_cfs', False):
+    # Place Fan Selection as the first active tab when navigated from Cross-Fan
+    tab4, tab1, tab2, tab3 = st.tabs([
+        '🎯 Fan Selection',
+        '📋 Data & Calculations',
+        '📈 Performance Curves',
+        '🔮 Custom Interpolation',
+    ])
+else:
+    tab1, tab2, tab3, tab4 = st.tabs([
+        '📋 Data & Calculations',
+        '📈 Performance Curves',
+        '🔮 Custom Interpolation',
+        '🎯 Fan Selection',
+    ])
 
 # ── TAB 1 ──────────────────────────────────────────────────────
 with tab1:
@@ -584,7 +665,8 @@ with tab3:
 
     pc1, pc2 = st.columns([1, 3])
     with pc1:
-        c_angle = st.slider('Blade Angle (°)', 15.0, 50.0, 32.5, 0.5,
+        _def_angle = float(st.session_state.get('cfs_nav_angle', 32.5))
+        c_angle = st.slider('Blade Angle (°)', 15.0, 50.0, _def_angle, 0.5,
                              key=f'custom_angle_{selected_fan}')
         st.markdown(f"""
 <div class="metric-card">
@@ -619,16 +701,39 @@ with tab4:
 
     s1, s2, s3 = st.columns(3)
     unit = flow_unit_label()
+    nav_active = bool(st.session_state.get('nav_from_cfs', False))
+    cfs_cmh = float(st.session_state.get('cfs_nav_cmh', 5000.0))
+    cfs_sp = float(st.session_state.get('cfs_nav_sp', 10.0))
+
     if unit == 'CFM':
-        req_val = s1.number_input('Required Volume (CFM)', int(100 * CMH_TO_CFM), int(50000 * CMH_TO_CFM), int(5000 * CMH_TO_CFM), int(100 * CMH_TO_CFM))
+        default_cfm = int(round(cfs_cmh * CMH_TO_CFM)) if nav_active else int(5000 * CMH_TO_CFM)
+        req_val = s1.number_input(
+            'Required Volume (CFM)',
+            int(100 * CMH_TO_CFM), int(500000 * CMH_TO_CFM),
+            default_cfm, int(100 * CMH_TO_CFM),
+            key='ts_req_cfm',
+        )
         req_cmh = req_val * CFM_TO_CMH
     else:
-        req_cmh = s1.number_input('Required Volume (CMH)', 100, 50000, 5000, 100)
-    req_sp  = s2.number_input('Required SP (mm WG)',    0.0, 60.0,  10.0, 0.5)
-    find    = s3.button('🔍 Find Best Configuration', type='primary',
-                        use_container_width=True)
+        default_cmh = int(round(cfs_cmh)) if nav_active else 5000
+        req_cmh = s1.number_input(
+            'Required Volume (CMH)',
+            100, 500000,
+            default_cmh, 100,
+            key='ts_req_cmh',
+        )
 
-    if find:
+    default_sp = cfs_sp if nav_active else 10.0
+    req_sp = s2.number_input(
+        'Required SP (mm WG)',
+        0.0, 200.0,
+        default_sp, 0.5,
+        key='ts_req_sp',
+    )
+    find = s3.button('🔍 Find Best Configuration', type='primary',
+                     use_container_width=True)
+
+    if find or nav_active:
         design_rpm = constants['design_speed_rpm']
 
         with st.spinner('🔄 Evaluating all motor options via fan laws …'):
