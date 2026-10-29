@@ -1328,20 +1328,21 @@ def _page_cross_fan_selection() -> None:
         _m_rat = _rec["motor_rating"]
         _di = "✅" if _rec["deviation"] < 0.3 else ("⚠️" if _rec["deviation"] < 0.6 else "❌")
         row_data = {
-            "Rank":             _i + 1,
-            "Fan":              _rec["fan_name"],
-            "Motor":            _rec["motor_label"],
-            "Motor Rating":     _m_rat["rating_str"],
-            "Angle (°)":        _rec["angle"],
-            "Outlet V (m/s)":   round(_rec.get("v_out_mps", _sc.get("V_out", 0.0)), 2),
-            f"Volume ({unit})": round(convert_flow_out(_sc["Q_CMH"])),
-            f"Δ {unit}":        f"{convert_flow_out(_sc['Q_CMH']) - convert_flow_out(req_cmh):+.0f}",
-            "FSP (mm WG)":      round(_sc["FSP"], 2),
-            "Δ SP":             f"{_sc['FSP'] - req_sp:+.2f}",
-            "BKW (kW)":         round(_sc["BKW"], 3),
-            "η Static (%)":     round(_sc["Static_Eff"], 1),
-            "η Total (%)":      round(_sc["Total_Eff"], 1),
-            "Match":            f"{_di} {_rec['deviation']:.1%}",
+            "Rank":                   _i + 1,
+            "Fan":                    _rec["fan_name"],
+            "Motor":                  _rec["motor_label"],
+            "Motor Rating":           _m_rat["rating_str"],
+            "Angle (°)":              _rec["angle"],
+            "Outlet V (m/s)":         round(_rec.get("v_out_mps", _sc.get("V_out", 0.0)), 2),
+            f"Volume ({unit})":       round(convert_flow_out(_sc["Q_CMH"])),
+            f"Δ {unit}":              f"{convert_flow_out(_sc['Q_CMH']) - convert_flow_out(req_cmh):+.0f}",
+            "FSP (mm WG)":            round(_sc["FSP"], 2),
+            "Δ SP":                   f"{_sc['FSP'] - req_sp:+.2f}",
+            "Total Pressure (mm WG)": round(_sc.get("FTP", 0.0), 2),
+            "BKW (kW)":               round(_sc["BKW"], 3),
+            "η Static (%)":           round(_sc["Static_Eff"], 1),
+            "η Total (%)":            round(_sc["Total_Eff"], 1),
+            "Match":                  f"{_di} {_rec['deviation']:.1%}",
         }
         _tbl_ranked.append(row_data)
 
