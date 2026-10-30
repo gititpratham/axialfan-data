@@ -387,7 +387,9 @@ with st.sidebar:
         test_temp_c=test_temp, test_baro_mmhg=test_baro,
         design_temp_c=design_temp, design_baro_mmhg=design_baro,
         design_speed_rpm=design_speed, motor_efficiency=motor_eff,
-        poles=_db_constants.get('poles', 4),
+        poles=_db_constants.get('poles'),
+        fan_name=selected_display_name,
+        fan_id=selected_fan,
         g=9.81,
     )
 

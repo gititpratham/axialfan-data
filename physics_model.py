@@ -152,7 +152,9 @@ def predict_performance(
     angles = np.sort(df['ANGLE'].unique())
     
     # Boundary logic for angle
-    if angle <= angles[0]:
+    if len(angles) == 1:
+        a1, a2 = angles[0], angles[0]
+    elif angle <= angles[0]:
         a1, a2 = angles[0], angles[1]
     elif angle >= angles[-1]:
         a1, a2 = angles[-2], angles[-1]
@@ -282,20 +284,24 @@ def find_motor_recommendation(
     """
     # Enforce: if fan has data for only 4-pole or 6-pole or 2-pole, do not allow other motor poles!
     constants = df.attrs.get('constants', {})
-    fan_name = constants.get('fan_name', '')
-    name_check = f"{fan_name}".lower()
-    df_pole = constants.get('poles')
-    if '4-pole' in name_check or '4 pole' in name_check or '4p' in name_check:
-        df_pole = 4
-    elif '6-pole' in name_check or '6 pole' in name_check or '6p' in name_check:
-        df_pole = 6
-    elif '2-pole' in name_check or '2 pole' in name_check or '2p' in name_check:
-        df_pole = 2
+    fan_name = str(constants.get('fan_name', '') or '')
+    fan_id = str(constants.get('fan_id', '') or '')
+    name_check = f"{fan_name} {fan_id}".lower()
 
-    if df_pole is not None:
-        if allowed_poles and df_pole not in allowed_poles:
+    specified_pole = None
+    if '4-pole' in name_check or '4 pole' in name_check or '4p' in name_check:
+        specified_pole = 4
+    elif '6-pole' in name_check or '6 pole' in name_check or '6p' in name_check:
+        specified_pole = 6
+    elif '2-pole' in name_check or '2 pole' in name_check or '2p' in name_check:
+        specified_pole = 2
+    elif constants.get('poles') in (2, 4, 6) and any(x in name_check for x in ['pole', 'p']):
+        specified_pole = constants.get('poles')
+
+    if specified_pole is not None:
+        if allowed_poles and specified_pole not in allowed_poles:
             return []
-        effective_allowed_poles = [df_pole]
+        effective_allowed_poles = [specified_pole]
     else:
         effective_allowed_poles = allowed_poles
 
@@ -374,8 +380,9 @@ def cross_fan_recommend(
 ) -> list[dict]:
     """
     For each fan in *fan_ids* run motor recommendation and return a unified ranked list.
-    Enforces dedicated motor pole constraints: fans with 4-pole or 6-pole data are
-    never evaluated with or suggested for a different motor pole.
+    Enforces dedicated motor pole constraints: fans with specified 4-pole or 6-pole data
+    are only evaluated with their matching motor pole. Non-native fans (e.g. 33", 30", 27", 12")
+    can be evaluated across any allowed motor poles.
     """
     from fan_db import list_fans, get_fan_constants
 
@@ -391,24 +398,27 @@ def cross_fan_recommend(
         design_rpm = constants.get("design_speed_rpm", 1460)
         display = fan_meta.get(fan_id, {}).get("display_name", fan_id)
 
-        # Detect if fan has a dedicated pole rating (from name or constants)
+        # Detect if fan has a dedicated pole rating specified in name or ID
         fan_name_lower = f"{display} {fan_id}".lower()
-        fan_poles = constants.get("poles")
+        specified_pole = None
         if "4-pole" in fan_name_lower or "4 pole" in fan_name_lower or "4p" in fan_name_lower:
-            fan_poles = 4
+            specified_pole = 4
         elif "6-pole" in fan_name_lower or "6 pole" in fan_name_lower or "6p" in fan_name_lower:
-            fan_poles = 6
+            specified_pole = 6
         elif "2-pole" in fan_name_lower or "2 pole" in fan_name_lower or "2p" in fan_name_lower:
-            fan_poles = 2
-        elif fan_poles is None:
-            fan_poles = 6 if design_rpm <= 1100 else (4 if design_rpm <= 1800 else 2)
+            specified_pole = 2
+        elif constants.get("poles") in (2, 4, 6) and any(x in fan_name_lower for x in ["pole", "p"]):
+            specified_pole = constants.get("poles")
 
-        # Skip fans whose native pole rating does not match allowed_poles requirement
-        if allowed_poles and fan_poles not in allowed_poles:
-            continue
-
-        # CRITICAL: Fans with 4-pole or 6-pole data can ONLY use their matching motor pole!
-        poles_to_eval = [fan_poles] if fan_poles else allowed_poles
+        if specified_pole is not None:
+            # Dedicated pole fan: if its specified pole does not match allowed_poles requirement, skip it!
+            if allowed_poles and specified_pole not in allowed_poles:
+                continue
+            # Fans with specified 4-pole or 6-pole data can ONLY use their matching motor pole
+            poles_to_eval = [specified_pole]
+        else:
+            # Non-native fans (e.g. 33", 30", 27", 12"): evaluate across all requested allowed poles
+            poles_to_eval = allowed_poles
 
         try:
             recs = find_motor_recommendation(

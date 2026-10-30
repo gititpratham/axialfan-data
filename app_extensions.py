@@ -428,6 +428,8 @@ def _load_all_computed() -> dict[str, pd.DataFrame]:
         try:
             raw = get_raw_df(fid)
             constants = get_fan_constants(fid)
+            constants["fan_name"] = fan.get("display_name", fid)
+            constants["fan_id"] = fid
             computed = compute_derived_quantities(df=raw, constants=constants)
             out[fid] = computed
         except Exception:
