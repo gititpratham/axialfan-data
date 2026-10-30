@@ -1216,6 +1216,48 @@ def _page_cross_fan_selection() -> None:
         ):
             _navigate_to_fan_analysis(best, req_cmh, req_sp)
 
+        with st.expander("📄 Technical Data Sheet (TDS) — Best Match", expanded=False):
+            best_tds_data = {
+                "Parameter": [
+                    "Fan model",
+                    "Fan type",
+                    "Capacity",
+                    "St. Pressure",
+                    "Quantity",
+                    "RPM of the fans",
+                    "BKW",
+                    "Motor rating",
+                    "Fan total pressure",
+                    "Fan static Efficiency",
+                    "Fan total Efficiency",
+                    "Fan outletvelocity",
+                ],
+                "Value": [
+                    str(best['fan_name']),
+                    "Tube Axial Fan",
+                    f"{round(convert_flow_out(best_sc['Q_CMH'])):,} {unit.lower()}",
+                    f"{best_sc['FSP']:.2f} mm. Wg.",
+                    "1 No.",
+                    f"{best['motor_rpm']} RPM",
+                    f"{best_sc['BKW']:.3f} kW",
+                    f"{best_m_rat['rating_str']} ({best_m_rat['kw']} kW / {best_m_rat.get('poles', best.get('poles', 4))}P)",
+                    f"{best_sc.get('FTP', 0.0):.2f} mm wc",
+                    f"{best_sc['Static_Eff']:.1f} %",
+                    f"{best_sc['Total_Eff']:.1f} %",
+                    f"{best_v_out:.2f} m/sec",
+                ],
+            }
+            best_tds_df = pd.DataFrame(best_tds_data)
+            st.dataframe(best_tds_df, use_container_width=True, hide_index=True)
+            st.download_button(
+                "📥 Download TDS (CSV)",
+                best_tds_df.to_csv(index=False),
+                f"TDS_{best['fan_id']}_best_match.csv",
+                "text/csv",
+                key="cfs_download_tds_best",
+                use_container_width=True,
+            )
+
     with col_econ:
         econ_badge_text = "Lowest Motor Rating Option"
 
@@ -1260,6 +1302,48 @@ def _page_cross_fan_selection() -> None:
             help=f"Navigate directly to {econ['fan_name']} selection page with cross-fan calculations pre-filled",
         ):
             _navigate_to_fan_analysis(econ, req_cmh, req_sp)
+
+        with st.expander("📄 Technical Data Sheet (TDS) — Lowest Motor Rating", expanded=True):
+            econ_tds_data = {
+                "Parameter": [
+                    "Fan model",
+                    "Fan type",
+                    "Capacity",
+                    "St. Pressure",
+                    "Quantity",
+                    "RPM of the fans",
+                    "BKW",
+                    "Motor rating",
+                    "Fan total pressure",
+                    "Fan static Efficiency",
+                    "Fan total Efficiency",
+                    "Fan outletvelocity",
+                ],
+                "Value": [
+                    str(econ['fan_name']),
+                    "Tube Axial Fan",
+                    f"{round(convert_flow_out(econ_sc['Q_CMH'])):,} {unit.lower()}",
+                    f"{econ_sc['FSP']:.2f} mm. Wg.",
+                    "1 No.",
+                    f"{econ['motor_rpm']} RPM",
+                    f"{econ_sc['BKW']:.3f} kW",
+                    f"{econ_m_rat['rating_str']} ({econ_m_rat['kw']} kW / {econ_m_rat.get('poles', econ.get('poles', 4))}P)",
+                    f"{econ_sc.get('FTP', 0.0):.2f} mm wc",
+                    f"{econ_sc['Static_Eff']:.1f} %",
+                    f"{econ_sc['Total_Eff']:.1f} %",
+                    f"{econ_v_out:.2f} m/sec",
+                ],
+            }
+            econ_tds_df = pd.DataFrame(econ_tds_data)
+            st.dataframe(econ_tds_df, use_container_width=True, hide_index=True)
+            st.download_button(
+                "📥 Download TDS (CSV)",
+                econ_tds_df.to_csv(index=False),
+                f"TDS_{econ['fan_id']}_lowest_motor.csv",
+                "text/csv",
+                key="cfs_download_tds_econ",
+                use_container_width=True,
+            )
 
     # ── Runner-up cards ───────────────────────────────────────────────────────
     # Exclude the exact best and econ options from runner-up display
